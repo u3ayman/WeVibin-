@@ -1,5 +1,6 @@
 import { Room } from './types';
 
+
 export class RoomManager {
   private rooms: Map<string, Room> = new Map();
 

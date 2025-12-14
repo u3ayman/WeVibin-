@@ -67,28 +67,43 @@ export function App() {
   }, [roomState, isSessionCreated, updateStatus]);
 
   const handleCreateRoom = async (name: string) => {
-    setUserName(name);
-    
-    // Create friend session if not already created
-    if (!isSessionCreated) {
-      await createSession(name);
-    }
+    try {
+      setUserName(name);
+      
+      // Create friend session if not already created
+      if (!isSessionCreated) {
+        await createSession(name);
+      }
 
-    await createRoom(name);
-    setCurrentView('room');
+      await createRoom(name);
+      // View will switch automatically when roomState updates
+    } catch (error) {
+      console.error('Failed to create room:', error);
+    }
   };
 
   const handleJoinRoom = async (code: string, name: string) => {
-    setUserName(name);
-    
-    // Create friend session if not already created
-    if (!isSessionCreated) {
-      await createSession(name);
-    }
+    try {
+      setUserName(name);
+      
+      // Create friend session if not already created
+      if (!isSessionCreated) {
+        await createSession(name);
+      }
 
-    await joinRoom(code, name);
-    setCurrentView('room');
+      await joinRoom(code, name);
+      // View will switch automatically when roomState updates
+    } catch (error) {
+      console.error('Failed to join room:', error);
+    }
   };
+
+  // Automatically switch to room view when roomState is set
+  useEffect(() => {
+    if (roomState && currentView === 'home') {
+      setCurrentView('room');
+    }
+  }, [roomState, currentView]);
 
   const handleLeaveRoom = () => {
     leaveRoom();

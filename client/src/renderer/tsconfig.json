@@ -11,5 +11,5 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true
   },
-  "include": ["src/renderer/**/*"]
+  "include": ["./**/*"]
 }
