@@ -1,0 +1,67 @@
+====================================
+  ROUTER PORT FORWARDING SETUP
+====================================
+
+⚠️ YOUR ROUTER MUST BE CONFIGURED FOR EXTERNAL ACCESS
+
+Server Status: ✅ RUNNING
+Local Access: ✅ WORKING
+External Access: ❌ BLOCKED BY ROUTER
+
+====================================
+
+📋 PORT FORWARDING CONFIGURATION:
+
+Router Admin: http://192.168.1.1
+(or check router manual for admin URL)
+
+ADD THIS PORT FORWARDING RULE:
+────────────────────────────────
+Service Name:    WeVibin Server
+External Port:   3001
+Internal IP:     192.168.1.21
+Internal Port:   3001
+Protocol:        TCP (or TCP/UDP)
+────────────────────────────────
+
+====================================
+
+🔍 HOW TO FIND ROUTER SETTINGS:
+
+1. Open browser and go to: http://192.168.1.1
+   (Try 192.168.0.1 if that doesn't work)
+
+2. Login with admin credentials
+   (Often printed on router or in manual)
+
+3. Look for one of these sections:
+   - Port Forwarding
+   - Virtual Server
+   - NAT / NAT Forwarding
+   - Advanced → Port Forwarding
+   - Gaming / Applications
+
+4. Add the rule above
+
+5. Save and reboot router if needed
+
+====================================
+
+🧪 AFTER CONFIGURING, TEST WITH:
+
+From external device browser:
+http://41.38.46.220:3001/socket.io/socket.io.js
+
+You should see JavaScript code starting with:
+"/*! Socket.IO v4.8.1"
+
+====================================
+
+📞 ALTERNATIVE IF YOU CAN'T ACCESS ROUTER:
+
+Contact your ISP or network administrator to:
+- Enable port forwarding for port 3001
+- Ensure port 3001 is not blocked
+- Check if you have a public IP (not CGNAT)
+
+====================================

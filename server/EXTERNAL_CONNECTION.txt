@@ -1,0 +1,39 @@
+====================================
+  WeVibin' External Connection Info
+====================================
+
+📱 COPY THIS TO YOUR EXTERNAL DEVICE:
+
+Connection URL:
+http://41.38.46.220:3001
+
+WebSocket URL:
+ws://41.38.46.220:3001
+
+====================================
+
+🧪 Quick Test (from this server):
+Run: test-external.bat
+
+🧪 Quick Test (PowerShell):
+Invoke-WebRequest -Uri "http://41.38.46.220:3001/socket.io/?EIO=4&transport=polling" -UseBasicParsing
+
+🧪 Test from External Device (Browser):
+Open browser and visit:
+http://41.38.46.220:3001/socket.io/socket.io.js
+
+If you see JavaScript code, server is working!
+
+====================================
+
+📋 Client Configuration:
+Your external app should connect to:
+  SERVER_URL: http://41.38.46.220:3001
+
+Socket.IO client code example:
+  const socket = io('http://41.38.46.220:3001', {
+    transports: ['websocket', 'polling'],
+    reconnection: true
+  });
+
+====================================

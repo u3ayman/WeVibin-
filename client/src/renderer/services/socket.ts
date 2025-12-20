@@ -10,8 +10,11 @@ class SocketService {
     const SERVER_URL = process.env.VITE_SERVER_URL || 'http://41.38.46.220:3001';
     
     this.socket = io(SERVER_URL, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      timeout: 20000,
     });
 
     this.socket.on('connect', () => {

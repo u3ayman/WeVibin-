@@ -5,19 +5,63 @@ import { RoomManager } from './rooms';
 import { FriendManager } from './friends';
 
 const app = express();
+
+// Add a welcome page
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>WeVibin' Server</title>
+      <style>
+        body { font-family: Arial; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { text-align: center; background: rgba(0,0,0,0.3); padding: 40px; border-radius: 20px; }
+        h1 { font-size: 3em; margin: 0; }
+        .status { color: #4ade80; font-size: 1.2em; margin: 20px 0; }
+        .info { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 20px 0; }
+        code { background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>🎵 WeVibin' Server</h1>
+        <div class="status">✅ Server is Running!</div>
+        <div class="info">
+          <p><strong>Server:</strong> MYSQL-SERVER</p>
+          <p><strong>Public IP:</strong> 41.38.46.220</p>
+          <p><strong>Port:</strong> 3001</p>
+          <p><strong>Status:</strong> Online and accepting connections</p>
+        </div>
+        <div class="info">
+          <p><strong>Socket.IO Endpoint:</strong></p>
+          <code>http://41.38.46.220:3001</code>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],
+    credentials: true,
   },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 const roomManager = new RoomManager();
 const friendManager = new FriendManager();
 
 io.on('connection', (socket) => {
-  console.log(`Client connected: ${socket.id}`);
+  console.log(`✅ Client connected: ${socket.id}`);
+  console.log(`   Transport: ${socket.conn.transport.name}`);
+  console.log(`   Address: ${socket.handshake.address}`);
 
   // Room events
   socket.on('create-room', (data: { userName: string }, callback) => {
