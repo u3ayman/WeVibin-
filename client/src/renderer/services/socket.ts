@@ -6,7 +6,10 @@ class SocketService {
   connect() {
     if (this.socket?.connected) return;
 
-    this.socket = io('http://localhost:3001', {
+    // Production server IP
+    const SERVER_URL = process.env.VITE_SERVER_URL || 'http://41.38.46.220:3001';
+    
+    this.socket = io(SERVER_URL, {
       transports: ['websocket'],
       reconnection: true,
     });

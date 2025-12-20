@@ -337,7 +337,12 @@ io.on('connection', (socket) => {
   }
 });
 
-const PORT = 3001;
-httpServer.listen(PORT, () => {
-  console.log(`🎵 WeVibin' server running on port ${PORT}`);
+const PORT = Number(process.env.PORT) || 3001;
+const HOST = process.env.HOST || '0.0.0.0';
+
+httpServer.listen(PORT, HOST, () => {
+  console.log(`🎵 WeVibin' server running on ${HOST}:${PORT}`);
+  console.log(`📡 Server: MYSQL-SERVER`);
+  console.log(`🌐 Public IP: 41.38.46.220`);
+  console.log(`🔗 Clients connect to: ws://41.38.46.220:${PORT}`);
 });
