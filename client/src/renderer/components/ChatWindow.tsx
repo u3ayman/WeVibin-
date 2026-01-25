@@ -65,33 +65,12 @@ export function ChatWindow({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      zIndex: 1000,
-    }}>
-      <div style={{
-        background: 'white',
-        borderRadius: '16px',
-        width: '100%',
-        maxWidth: '600px',
-        height: '700px',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
+    <div className="wv-overlay">
+      <div className="wv-modal" style={{ width: 'min(640px, 100%)', height: 'min(700px, 92vh)' }}>
         {/* Header */}
         <div style={{
           padding: '20px',
-          borderBottom: '1px solid #e5e7eb',
+          borderBottom: '1px solid rgba(255,255,255,0.10)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -112,14 +91,14 @@ export function ChatWindow({
               <h3 style={{
                 fontSize: '20px',
                 fontWeight: '600',
-                color: '#374151',
+                color: 'rgba(245,245,247,0.95)',
               }}>
                 {friend.name}
               </h3>
             </div>
             <p style={{
               fontSize: '14px',
-              color: '#6b7280',
+              color: 'rgba(245,245,247,0.65)',
             }}>
               {friend.status === 'online' && 'Online'}
               {friend.status === 'offline' && 'Offline'}
@@ -133,13 +112,13 @@ export function ChatWindow({
                 onClick={() => onSendInvite(currentRoomCode)}
                 style={{
                   padding: '8px 16px',
-                  background: '#667eea',
-                  color: 'white',
-                  border: 'none',
+                  background: 'rgba(168,85,247,0.18)',
+                  color: 'rgba(245,245,247,0.95)',
                   borderRadius: '8px',
                   cursor: 'pointer',
                   fontWeight: '600',
                   fontSize: '14px',
+                  border: '1px solid rgba(255,255,255,0.10)',
                 }}
               >
                 🎵 Invite
@@ -168,16 +147,16 @@ export function ChatWindow({
               onClick={onClose}
               style={{
                 padding: '8px 16px',
-                background: '#f3f4f6',
-                color: '#374151',
-                border: 'none',
+                background: 'rgba(255,255,255,0.06)',
+                color: 'rgba(245,245,247,0.9)',
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: '600',
                 fontSize: '18px',
+                border: '1px solid rgba(255,255,255,0.10)',
               }}
             >
-              ✕
+              Close
             </button>
           </div>
         </div>

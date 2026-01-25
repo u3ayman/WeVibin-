@@ -4,17 +4,30 @@ export interface User {
   socketId: string;
 }
 
+export interface Track {
+  id: string;
+  name: string;
+  artists: string;
+  albumArt?: string;
+  duration: number; // ms
+  source: 'local' | 'spotify';
+  uri?: string;
+  fileName?: string;
+  addedBy: { id: string; name: string };
+}
+
 export interface AudioState {
   isPlaying: boolean;
-  position: number;
+  position: number; // ms
   timestamp: number;
-  fileName?: string;
+  currentTrack?: Track;
 }
 
 export interface RoomState {
   code: string;
   host: { id: string; name: string };
   users: User[];
+  queue: Track[];
   audioState: AudioState;
 }
 
@@ -38,10 +51,27 @@ export interface ChatMessage {
   partyCode?: string;
 }
 
+export interface QueueItem {
+  id: string;
+  fileName: string;
+  filePath: string;
+  blobUrl?: string;
+  duration?: number;
+}
+
 declare global {
   interface Window {
     electron: {
       selectAudioFile: () => Promise<string | undefined>;
+      selectAudioFolder: () => Promise<string[]>;
+      readAudioFile: (filePath: string) => Promise<{
+        success: boolean;
+        buffer?: number[];
+        fileName?: string;
+        mimeType?: string;
+        error?: string;
+      }>;
+      writeClipboard: (text: string) => Promise<{ success: boolean; error?: string }>;
     };
   }
 }

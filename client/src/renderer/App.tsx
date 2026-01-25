@@ -1,25 +1,33 @@
 import React, { useState, useEffect } from 'react';
+import { Home as HomeIcon, Users as UsersIcon, Settings as SettingsIcon, LogOut as LogOutIcon, Music } from 'lucide-react';
 import { Home } from './components/Home';
 import { Room } from './components/Room';
 import { FriendsList } from './components/FriendsList';
 import { ChatWindow } from './components/ChatWindow';
+import { Settings } from './components/Settings';
+import { Login } from './components/Login';
+import { Register } from './components/Register';
+import { SpotifyCallback } from './components/SpotifyCallback';
+import { Toast, useToast } from './components/Toast';
 import { useRoom } from './hooks/useRoom';
 import { usePTT } from './hooks/usePTT';
 import { useFriends } from './hooks/useFriends';
 import { Friend } from './types';
-import { initializeWebRTC } from './services/webrtc';
+import { voiceService } from './services/voice';
 import { socketService } from './services/socket';
+import { useAuth } from './context/AuthContext';
 
-type View = 'home' | 'room' | 'friends';
+type View = 'home' | 'room' | 'friends' | 'settings' | 'login' | 'register';
 
 export function App() {
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [currentView, setCurrentView] = useState<View>('home');
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
-  const [userName, setUserName] = useState('');
+  const [isCompact, setIsCompact] = useState(() => window.innerWidth <= 720);
+  const toast = useToast();
 
   const {
     roomState,
-    isConnected,
     error: roomError,
     isHost,
     speakingUsers,
@@ -28,6 +36,9 @@ export function App() {
     leaveRoom,
     syncAudio,
     updateAudioState,
+    addToQueue,
+    removeFromQueue,
+    nextTrack,
     kickUser,
   } = useRoom();
 
@@ -42,68 +53,99 @@ export function App() {
   const {
     friends,
     myFriendCode,
-    myUserName,
-    createSession,
     addFriend,
     sendMessage,
     getChatHistory,
     getMessagesWithFriend,
     updateStatus,
-    isSessionCreated,
   } = useFriends();
 
-  // Initialize WebRTC on mount
+  // Initialize Voice Service on mount
   useEffect(() => {
-    initializeWebRTC();
+    // Attempt Initial permission request/setup
+    // But usually we wait for user setting or first interaction.
+    // However, voiceService needs an audio context to be created.
+    // It's safe to init the service listeners, but maybe not the context until interaction.
+    // The constructor already set up listeners.
+    // We can call initialize to check permissions if we want, or do it lazy.
+    // Let's do it lazy when joining a room or opening settings.
+    // But for now, let's keep it simple and just ensure listeners are active (constructor).
+  }, []);
+
+  // Responsive breakpoint
+  useEffect(() => {
+    const handleResize = () => setIsCompact(window.innerWidth <= 720);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Update friend status when joining/leaving rooms
   useEffect(() => {
-    if (roomState && isSessionCreated) {
+    if (roomState && isAuthenticated) {
       updateStatus('in-party', roomState.code);
-    } else if (!roomState && isSessionCreated) {
+    } else if (!roomState && isAuthenticated) {
       updateStatus('online');
     }
-  }, [roomState, isSessionCreated, updateStatus]);
+  }, [roomState, isAuthenticated, updateStatus]);
+
+  // Automatically switch to room view when roomState is set
+  useEffect(() => {
+    if (roomState && (currentView === 'home' || currentView === 'friends')) {
+      setCurrentView('room');
+    }
+  }, [roomState, currentView]);
+
+  // Handle Spotify callback
+  if (window.location.pathname === '/callback') {
+    return <SpotifyCallback />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="wv-loading-screen">
+        <Music size={64} className="wv-pulse" />
+        <h2>Vibing...</h2>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated && currentView !== 'register') {
+    return (
+      <div className="wv-auth-shell">
+        <Login onSwitchToRegister={() => setCurrentView('register')} />
+        <Toast toasts={toast.toasts} onDismiss={toast.dismissToast} />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated && currentView === 'register') {
+    return (
+      <div className="wv-auth-shell">
+        <Register onSwitchToLogin={() => setCurrentView('home')} />
+        <Toast toasts={toast.toasts} onDismiss={toast.dismissToast} />
+      </div>
+    );
+  }
 
   const handleCreateRoom = async (name: string) => {
     try {
-      setUserName(name);
-      
-      // Create friend session if not already created
-      if (!isSessionCreated) {
-        await createSession(name);
-      }
-
       await createRoom(name);
-      // View will switch automatically when roomState updates
+      toast.success('Room created!');
     } catch (error) {
       console.error('Failed to create room:', error);
+      toast.error('Failed to create room');
     }
   };
 
   const handleJoinRoom = async (code: string, name: string) => {
     try {
-      setUserName(name);
-      
-      // Create friend session if not already created
-      if (!isSessionCreated) {
-        await createSession(name);
-      }
-
       await joinRoom(code, name);
-      // View will switch automatically when roomState updates
+      toast.success('Joined room!');
     } catch (error) {
       console.error('Failed to join room:', error);
+      toast.error('Failed to join room');
     }
   };
-
-  // Automatically switch to room view when roomState is set
-  useEffect(() => {
-    if (roomState && currentView === 'home') {
-      setCurrentView('room');
-    }
-  }, [roomState, currentView]);
 
   const handleLeaveRoom = () => {
     leaveRoom();
@@ -140,81 +182,107 @@ export function App() {
     if (roomState) {
       leaveRoom();
     }
-    
-    await joinRoom(roomCode, userName || myUserName);
+
+    await joinRoom(roomCode, user?.username || 'Guest');
     setCurrentView('room');
     handleCloseChat();
   };
 
-  const handleNavigateToFriends = async () => {
-    if (!isSessionCreated) {
-      // Prompt for username if not set
-      const name = prompt('Enter your name to access friends:');
-      if (!name) return;
-      
-      setUserName(name);
-      await createSession(name);
-    }
-    
-    setCurrentView('friends');
-  };
-
   return (
-    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      {/* Navigation Bar (hidden in room) */}
+    <div className="wv-app">
+      {/* Topbar (hidden in room) */}
       {currentView !== 'room' && (
-        <nav style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          background: 'white',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          padding: '16px 32px',
-          display: 'flex',
-          gap: '16px',
-          zIndex: 100,
-        }}>
+        <header className="wv-topbar">
+          <div className="wv-brand">
+            <span className="wv-brand__dot" />
+            <span className="wv-brand__name">WeVibin'</span>
+          </div>
+
+          {!isCompact && (
+            <nav className="wv-nav" aria-label="Primary">
+              <button
+                className={`wv-navBtn ${currentView === 'home' ? 'wv-navBtn--active' : ''}`}
+                onClick={() => setCurrentView('home')}
+                type="button"
+              >
+                <HomeIcon size={18} />
+                Home
+              </button>
+              <button
+                className={`wv-navBtn ${currentView === 'friends' ? 'wv-navBtn--active' : ''}`}
+                onClick={() => setCurrentView('friends')}
+                type="button"
+              >
+                <UsersIcon size={18} />
+                Friends
+              </button>
+              <button
+                className={`wv-navBtn ${currentView === 'settings' ? 'wv-navBtn--active' : ''}`}
+                onClick={() => setCurrentView('settings')}
+                type="button"
+              >
+                <SettingsIcon size={18} />
+                Settings
+              </button>
+              <button
+                className="wv-navBtn wv-navBtn--logout"
+                onClick={logout}
+                type="button"
+              >
+                <LogOutIcon size={18} />
+                Logout
+              </button>
+            </nav>
+          )}
+        </header>
+      )}
+
+      {/* Bottom nav for compact widths */}
+      {currentView !== 'room' && isCompact && (
+        <nav className="wv-bottomNav" aria-label="Bottom Navigation">
           <button
+            className={`wv-navBtn ${currentView === 'home' ? 'wv-navBtn--active' : ''}`}
             onClick={() => setCurrentView('home')}
-            style={{
-              padding: '10px 20px',
-              background: currentView === 'home' ? '#667eea' : 'transparent',
-              color: currentView === 'home' ? 'white' : '#374151',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '16px',
-            }}
+            type="button"
+            aria-label="Home"
           >
-            🏠 Home
+            <HomeIcon size={18} />
           </button>
           <button
-            onClick={handleNavigateToFriends}
-            style={{
-              padding: '10px 20px',
-              background: currentView === 'friends' ? '#667eea' : 'transparent',
-              color: currentView === 'friends' ? 'white' : '#374151',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '16px',
-            }}
+            className={`wv-navBtn ${currentView === 'friends' ? 'wv-navBtn--active' : ''}`}
+            onClick={() => setCurrentView('friends')}
+            type="button"
+            aria-label="Friends"
           >
-            👥 Friends
+            <UsersIcon size={18} />
+          </button>
+          <button
+            className={`wv-navBtn ${currentView === 'settings' ? 'wv-navBtn--active' : ''}`}
+            onClick={() => setCurrentView('settings')}
+            type="button"
+            aria-label="Settings"
+          >
+            <SettingsIcon size={18} />
+          </button>
+          <button
+            className="wv-navBtn"
+            onClick={logout}
+            type="button"
+            aria-label="Logout"
+          >
+            <LogOutIcon size={18} />
           </button>
         </nav>
       )}
 
       {/* Main Content */}
-      <div style={{ paddingTop: currentView !== 'room' ? '72px' : '0' }}>
+      <div className={currentView !== 'room' ? 'wv-shell' : undefined}>
         {currentView === 'home' && (
           <Home
             onCreateRoom={handleCreateRoom}
             onJoinRoom={handleJoinRoom}
             error={roomError}
+            defaultName={user?.username}
           />
         )}
 
@@ -229,10 +297,14 @@ export function App() {
             onKickUser={kickUser}
             onAudioStateChanged={updateAudioState}
             onSyncAudio={syncAudio}
+            onAddToQueue={addToQueue}
+            onRemoveFromQueue={removeFromQueue}
+            onNextTrack={nextTrack}
             onToggleMute={toggleMute}
             onStartTransmitting={startTransmitting}
             onStopTransmitting={stopTransmitting}
-            mySocketId={socketService.id}
+            mySocketId={user?.id || socketService.id || 'anonymous'}
+            toast={toast}
           />
         )}
 
@@ -242,7 +314,12 @@ export function App() {
             myFriendCode={myFriendCode}
             onAddFriend={addFriend}
             onOpenChat={handleOpenChat}
+            toast={toast}
           />
+        )}
+
+        {currentView === 'settings' && (
+          <Settings />
         )}
       </div>
 
@@ -251,7 +328,7 @@ export function App() {
         <ChatWindow
           friend={selectedFriend}
           messages={getMessagesWithFriend(selectedFriend.id)}
-          myUserId={socketService.id || ''}
+          myUserId={user?.id || ''}
           currentRoomCode={roomState?.code}
           onSendMessage={handleSendMessage}
           onSendInvite={handleSendInvite}
@@ -259,6 +336,9 @@ export function App() {
           onClose={handleCloseChat}
         />
       )}
+
+      {/* Toast Notifications */}
+      <Toast toasts={toast.toasts} onDismiss={toast.dismissToast} />
     </div>
   );
 }

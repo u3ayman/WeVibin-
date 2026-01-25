@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  email        String   @unique
+  passwordHash String
+  username     String
+  friendCode   String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  friendsSent     Friendship[] @relation("SentFriendships")
+  friendsReceived Friendship[] @relation("ReceivedFriendships")
+  messagesSent    ChatMessage[] @relation("SentMessages")
+  messagesReceived ChatMessage[] @relation("ReceivedMessages")
+  hostedRooms     Room[]        @relation("HostedRooms")
+}
+
+model Friendship {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  friendId  String   @db.ObjectId
+  status    String   // PENDING, ACCEPTED, REJECTED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User @relation("SentFriendships", fields: [userId], references: [id])
+  friend User @relation("ReceivedFriendships", fields: [friendId], references: [id])
+
+  @@unique([userId, friendId])
+}
+
+model ChatMessage {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  fromUserId   String   @db.ObjectId
+  fromUserName String
+  toUserId     String   @db.ObjectId
+  message      String
+  timestamp    DateTime @default(now())
+  type         String   @default("text") // text, party-invite
+  partyCode    String?
+
+  sender    User @relation("SentMessages", fields: [fromUserId], references: [id])
+  recipient User @relation("ReceivedMessages", fields: [toUserId], references: [id])
+}
+
+model Room {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  code           String   @unique
+  hostId         String   @db.ObjectId
+  status         String   @default("active") // active, closed
+  lastAudioState Json?    // Persisted playback state
+  queue          Json?    // Array of Tracks
+  lastActive     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  host User @relation("HostedRooms", fields: [hostId], references: [id])
+}

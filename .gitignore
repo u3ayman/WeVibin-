@@ -43,3 +43,20 @@ logs/
 
 # Optional npm cache directory
 .npm
+
+client/release/
+client/build/
+client/dist/
+client/.expo/
+client/.expo-shared/
+client/ios/
+client/android/
+client/web-build/
+client/.vscode/
+client/.idea/
+client/.DS_Store
+client/Thumbs.db
+client/desktop.ini
+client/logs/
+client/*.log
+client/*.tmp

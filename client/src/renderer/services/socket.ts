@@ -3,26 +3,31 @@ import io, { Socket } from 'socket.io-client';
 class SocketService {
   private socket: Socket | null = null;
 
-  connect() {
+  connect(token?: string) {
     if (this.socket?.connected) return;
 
     // Production server IP
     const SERVER_URL = process.env.VITE_SERVER_URL || 'http://41.38.46.220:3001';
-    
+
     this.socket = io(SERVER_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
       timeout: 20000,
+      auth: { token },
     });
 
     this.socket.on('connect', () => {
-      console.log('Connected to server');
+      console.log('Connected to server as', this.socket?.id);
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from server');
+    this.socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err.message);
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      console.log('Disconnected from server:', reason);
     });
   }
 

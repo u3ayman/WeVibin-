@@ -1,22 +1,36 @@
 import React, { useState } from 'react';
 import { Friend } from '../types';
+import { useToast } from './Toast';
 
 interface FriendsListProps {
   friends: Friend[];
   myFriendCode: string;
   onAddFriend: (friendCode: string) => Promise<{ success: boolean; error?: string }>;
   onOpenChat: (friend: Friend) => void;
+  toast: ReturnType<typeof useToast>;
 }
 
-export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: FriendsListProps) {
+export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat, toast }: FriendsListProps) {
   const [showMyCode, setShowMyCode] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newFriendCode, setNewFriendCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const copyMyCode = () => {
-    navigator.clipboard.writeText(myFriendCode);
+  const copyMyCode = async () => {
+    try {
+      // Try Electron API first (more reliable)
+      if (window.electron?.writeClipboard) {
+        await window.electron.writeClipboard(myFriendCode);
+      } else {
+        // Fallback to web API
+        await navigator.clipboard.writeText(myFriendCode);
+      }
+      toast.success('Friend code copied!');
+    } catch (error) {
+      console.error('Failed to copy friend code:', error);
+      toast.error('Failed to copy code');
+    }
   };
 
   const handleAddFriend = async () => {
@@ -60,18 +74,9 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      padding: '20px',
-    }}>
-      <div style={{
-        maxWidth: '800px',
-        margin: '0 auto',
-        background: 'white',
-        borderRadius: '16px',
-        padding: '32px',
-      }}>
+    <div className="wv-page">
+      <div className="wv-container">
+        <div className="wv-card wv-card--padded">
         {/* Header */}
         <div style={{
           display: 'flex',
@@ -82,7 +87,7 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
           <h2 style={{
             fontSize: '28px',
             fontWeight: 'bold',
-            color: '#374151',
+            color: 'inherit',
           }}>
             Friends
           </h2>
@@ -92,23 +97,23 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
               onClick={() => setShowMyCode(!showMyCode)}
               style={{
                 padding: '10px 16px',
-                background: showMyCode ? '#667eea' : 'white',
-                color: showMyCode ? 'white' : '#667eea',
-                border: '2px solid #667eea',
+                background: showMyCode ? 'rgba(168, 85, 247, 0.18)' : 'rgba(255,255,255,0.06)',
+                color: 'rgba(245,245,247,0.95)',
+                border: '1px solid rgba(255,255,255,0.12)',
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: '600',
               }}
             >
-              🔗 My Code
+              My Code
             </button>
 
             <button
               onClick={() => setShowAddModal(!showAddModal)}
               style={{
                 padding: '10px 16px',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
+                background: 'linear-gradient(90deg, #a855f7, #22d3ee)',
+                color: '#0a0a0f',
                 border: 'none',
                 borderRadius: '8px',
                 cursor: 'pointer',
@@ -123,15 +128,16 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
         {/* My Friend Code Section */}
         {showMyCode && (
           <div style={{
-            background: '#f3f4f6',
+            background: 'rgba(255,255,255,0.06)',
             padding: '20px',
             borderRadius: '12px',
             marginBottom: '24px',
+            border: '1px solid rgba(255,255,255,0.10)',
           }}>
             <h3 style={{
               fontSize: '16px',
               marginBottom: '12px',
-              color: '#374151',
+              color: 'rgba(245,245,247,0.9)',
               fontWeight: '600',
             }}>
               Your Friend Code
@@ -144,14 +150,15 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
               <div style={{
                 flex: 1,
                 padding: '12px',
-                background: 'white',
+                background: 'rgba(18,18,26,0.9)',
                 borderRadius: '8px',
                 fontFamily: 'monospace',
                 fontSize: '20px',
                 fontWeight: 'bold',
-                color: '#667eea',
+                color: '#22d3ee',
                 textAlign: 'center',
                 letterSpacing: '2px',
+                border: '1px solid rgba(255,255,255,0.10)',
               }}>
                 {myFriendCode}
               </div>
@@ -159,12 +166,12 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
                 onClick={copyMyCode}
                 style={{
                   padding: '12px 24px',
-                  background: '#667eea',
-                  color: 'white',
-                  border: 'none',
+                  background: 'rgba(168, 85, 247, 0.18)',
+                  color: 'rgba(245,245,247,0.95)',
                   borderRadius: '8px',
                   cursor: 'pointer',
                   fontWeight: '600',
+                  border: '1px solid rgba(255,255,255,0.12)',
                 }}
               >
                 Copy
@@ -176,15 +183,16 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
         {/* Add Friend Modal */}
         {showAddModal && (
           <div style={{
-            background: '#f3f4f6',
+            background: 'rgba(255,255,255,0.06)',
             padding: '20px',
             borderRadius: '12px',
             marginBottom: '24px',
+            border: '1px solid rgba(255,255,255,0.10)',
           }}>
             <h3 style={{
               fontSize: '16px',
               marginBottom: '12px',
-              color: '#374151',
+              color: 'rgba(245,245,247,0.9)',
               fontWeight: '600',
             }}>
               Add Friend
@@ -199,12 +207,14 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
               style={{
                 width: '100%',
                 padding: '12px',
-                border: '2px solid #e5e7eb',
+                border: '1px solid rgba(255,255,255,0.12)',
                 borderRadius: '8px',
                 fontSize: '16px',
                 marginBottom: '12px',
                 fontFamily: 'monospace',
                 letterSpacing: '1px',
+                background: 'rgba(18,18,26,0.9)',
+                color: 'rgba(245,245,247,0.95)',
               }}
             />
 
@@ -215,8 +225,8 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
                 style={{
                   flex: 1,
                   padding: '12px',
-                  background: '#667eea',
-                  color: 'white',
+                  background: 'linear-gradient(90deg, #a855f7, #22d3ee)',
+                  color: '#0a0a0f',
                   border: 'none',
                   borderRadius: '8px',
                   cursor: isLoading ? 'not-allowed' : 'pointer',
@@ -236,9 +246,9 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
                 disabled={isLoading}
                 style={{
                   padding: '12px 24px',
-                  background: 'white',
-                  color: '#6b7280',
-                  border: '2px solid #e5e7eb',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: 'rgba(245,245,247,0.85)',
+                  border: '1px solid rgba(255,255,255,0.12)',
                   borderRadius: '8px',
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   fontWeight: '600',
@@ -271,9 +281,8 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
             padding: '60px 20px',
             color: '#6b7280',
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
             <p style={{ fontSize: '18px', marginBottom: '8px' }}>No friends yet</p>
-            <p style={{ fontSize: '14px' }}>Click ➕ to add a friend</p>
+            <p style={{ fontSize: '14px' }}>Click Add Friend to get started</p>
           </div>
         ) : (
           <div style={{
@@ -285,18 +294,20 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
               <div
                 key={friend.id}
                 style={{
-                  background: '#f9fafb',
-                  border: '2px solid #e5e7eb',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.10)',
                   borderRadius: '12px',
                   padding: '20px',
                   transition: 'all 0.2s',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#667eea';
+                  e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.45)';
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
                   e.currentTarget.style.transform = 'translateY(-2px)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#e5e7eb';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
                   e.currentTarget.style.transform = 'translateY(0)';
                 }}
               >
@@ -318,18 +329,19 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
                         height: '10px',
                         borderRadius: '50%',
                         background: getStatusColor(friend.status),
+                        boxShadow: friend.status === 'online' ? '0 0 14px rgba(16,185,129,0.35)' : undefined,
                       }} />
                       <h4 style={{
                         fontSize: '16px',
                         fontWeight: '600',
-                        color: '#374151',
+                        color: 'rgba(245,245,247,0.95)',
                       }}>
                         {friend.name}
                       </h4>
                     </div>
                     <p style={{
                       fontSize: '13px',
-                      color: '#6b7280',
+                      color: 'rgba(245,245,247,0.65)',
                     }}>
                       {getStatusText(friend)}
                     </p>
@@ -341,21 +353,22 @@ export function FriendsList({ friends, myFriendCode, onAddFriend, onOpenChat }: 
                   style={{
                     width: '100%',
                     padding: '10px',
-                    background: '#667eea',
-                    color: 'white',
-                    border: 'none',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: 'rgba(245,245,247,0.95)',
+                    border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: '8px',
                     cursor: 'pointer',
                     fontWeight: '600',
                     fontSize: '14px',
                   }}
                 >
-                  💬 Chat
+                  Chat
                 </button>
               </div>
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

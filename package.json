@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "dev": "node start-all.js",
+    "start": "npm run dev",
+    "start:windows": "start-all.bat"
+  },
   "dependencies": {
     "typescript": "^5.9.3"
   }

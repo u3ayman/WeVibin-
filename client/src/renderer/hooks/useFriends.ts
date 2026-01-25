@@ -5,31 +5,16 @@ import { Friend, ChatMessage } from '../types';
 export function useFriends() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [myFriendCode, setMyFriendCode] = useState<string>('');
-  const [myUserName, setMyUserName] = useState<string>('');
   const [chatMessages, setChatMessages] = useState<Map<string, ChatMessage[]>>(new Map());
-  const [isSessionCreated, setIsSessionCreated] = useState(false);
-
-  const createSession = useCallback((userName: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      socketService.emit('create-friend-session', { userName }, (response: any) => {
-        if (response.success) {
-          setMyFriendCode(response.friendCode);
-          setFriends(response.friends || []);
-          setMyUserName(userName);
-          setIsSessionCreated(true);
-          resolve();
-        } else {
-          reject(new Error(response.error || 'Failed to create session'));
-        }
-      });
-    });
-  }, []);
 
   const addFriend = useCallback((friendCode: string): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
       socketService.emit('add-friend', { friendCode }, (response: any) => {
         if (response.success && response.friend) {
-          setFriends(prev => [...prev, response.friend]);
+          setFriends(prev => {
+            if (prev.some(f => f.id === response.friend.id)) return prev;
+            return [...prev, response.friend];
+          });
         }
         resolve(response);
       });
@@ -45,7 +30,6 @@ export function useFriends() {
     return new Promise((resolve, reject) => {
       socketService.emit('send-message', { toUserId, message, type, partyCode }, (response: any) => {
         if (response.success) {
-          // Add message to local state
           setChatMessages(prev => {
             const messages = prev.get(toUserId) || [];
             const newMessages = new Map(prev);
@@ -86,12 +70,14 @@ export function useFriends() {
   }, []);
 
   useEffect(() => {
+    const handleInitData = (data: { user: any; friends: Friend[] }) => {
+      setMyFriendCode(data.user.friendCode);
+      setFriends(data.friends || []);
+    };
+
     const handleFriendAdded = (data: { friend: Friend }) => {
       setFriends(prev => {
-        // Check if friend already exists
-        if (prev.some(f => f.id === data.friend.id)) {
-          return prev;
-        }
+        if (prev.some(f => f.id === data.friend.id)) return prev;
         return [...prev, data.friend];
       });
     };
@@ -114,11 +100,13 @@ export function useFriends() {
       });
     };
 
+    socketService.on('init-data', handleInitData);
     socketService.on('friend-added', handleFriendAdded);
     socketService.on('friend-status-update', handleFriendStatusUpdate);
     socketService.on('message-received', handleMessageReceived);
 
     return () => {
+      socketService.off('init-data', handleInitData);
       socketService.off('friend-added', handleFriendAdded);
       socketService.off('friend-status-update', handleFriendStatusUpdate);
       socketService.off('message-received', handleMessageReceived);
@@ -128,13 +116,10 @@ export function useFriends() {
   return {
     friends,
     myFriendCode,
-    myUserName,
-    createSession,
     addFriend,
     sendMessage,
     getChatHistory,
     getMessagesWithFriend,
     updateStatus,
-    isSessionCreated,
   };
 }

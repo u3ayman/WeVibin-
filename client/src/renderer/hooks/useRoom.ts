@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { socketService } from '../services/socket';
-import { RoomState } from '../types';
-import * as webrtc from '../services/webrtc';
+import { RoomState, Track } from '../types';
+
 
 export function useRoom() {
   const [roomState, setRoomState] = useState<RoomState | null>(null);
@@ -11,7 +11,7 @@ export function useRoom() {
   const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    socketService.connect();
+
 
     const handleConnect = () => {
       setIsConnected(true);
@@ -20,33 +20,6 @@ export function useRoom() {
 
     const handleDisconnect = () => {
       setIsConnected(false);
-    };
-
-    const handleRoomCreated = (data: { success: boolean; room?: RoomState; error?: string }) => {
-      if (data.success && data.room) {
-        setRoomState(data.room);
-        setIsHost(true);
-        setError(null);
-      } else {
-        setError(data.error || 'Failed to create room');
-      }
-    };
-
-    const handleRoomJoined = (data: { success: boolean; room?: RoomState; error?: string }) => {
-      if (data.success && data.room) {
-        setRoomState(data.room);
-        setIsHost(data.room.host.id === socketService.id);
-        setError(null);
-
-        // Create peer connections for existing users
-        data.room.users.forEach(user => {
-          if (user.id !== socketService.id) {
-            webrtc.createPeerConnection(user.id, true);
-          }
-        });
-      } else {
-        setError(data.error || 'Failed to join room');
-      }
     };
 
     const handleUserJoined = (data: { userId: string; userName: string }) => {
@@ -59,9 +32,8 @@ export function useRoom() {
         };
       });
 
-      // Create peer connection for new user (non-initiator will wait for offer)
       if (socketService.id !== data.userId) {
-        webrtc.createPeerConnection(data.userId, true);
+        // Voice service handles connection internally via socket events
       }
     };
 
@@ -74,7 +46,7 @@ export function useRoom() {
         };
       });
 
-      webrtc.closePeerConnection(data.userId);
+
       setSpeakingUsers(prev => {
         const next = new Set(prev);
         next.delete(data.userId);
@@ -97,7 +69,7 @@ export function useRoom() {
       });
     };
 
-    const handleAudioStateChanged = (data: { isPlaying: boolean; position: number; fileName?: string; timestamp: number }) => {
+    const handleAudioStateChanged = (data: { isPlaying: boolean; position: number; currentTrack?: Track; timestamp: number }) => {
       setRoomState(prev => {
         if (!prev) return prev;
         return {
@@ -106,9 +78,16 @@ export function useRoom() {
             isPlaying: data.isPlaying,
             position: data.position,
             timestamp: data.timestamp,
-            fileName: data.fileName,
+            currentTrack: data.currentTrack,
           },
         };
+      });
+    };
+
+    const handleQueueUpdated = (data: { queue: Track[] }) => {
+      setRoomState(prev => {
+        if (!prev) return prev;
+        return { ...prev, queue: data.queue };
       });
     };
 
@@ -128,21 +107,10 @@ export function useRoom() {
       setRoomState(null);
       setIsHost(false);
       setError('You were kicked from the room');
-      webrtc.closeAllConnections();
+
     };
 
-    // WebRTC signaling
-    const handleOffer = (data: { from: string; offer: RTCSessionDescriptionInit }) => {
-      webrtc.handleOffer(data.from, data.offer);
-    };
 
-    const handleAnswer = (data: { from: string; answer: RTCSessionDescriptionInit }) => {
-      webrtc.handleAnswer(data.from, data.answer);
-    };
-
-    const handleIceCandidate = (data: { from: string; candidate: RTCIceCandidateInit }) => {
-      webrtc.handleIceCandidate(data.from, data.candidate);
-    };
 
     socketService.on('connect', handleConnect);
     socketService.on('disconnect', handleDisconnect);
@@ -151,12 +119,11 @@ export function useRoom() {
     socketService.on('host-changed', handleHostChanged);
     socketService.on('audio-sync', handleAudioSync);
     socketService.on('audio-state-changed', handleAudioStateChanged);
+    socketService.on('queue-updated', handleQueueUpdated);
     socketService.on('ptt-started', handlePTTStarted);
     socketService.on('ptt-ended', handlePTTEnded);
     socketService.on('kicked', handleKicked);
-    socketService.on('offer', handleOffer);
-    socketService.on('answer', handleAnswer);
-    socketService.on('ice-candidate', handleIceCandidate);
+
 
     return () => {
       socketService.off('connect', handleConnect);
@@ -166,22 +133,26 @@ export function useRoom() {
       socketService.off('host-changed', handleHostChanged);
       socketService.off('audio-sync', handleAudioSync);
       socketService.off('audio-state-changed', handleAudioStateChanged);
+      socketService.off('queue-updated', handleQueueUpdated);
       socketService.off('ptt-started', handlePTTStarted);
       socketService.off('ptt-ended', handlePTTEnded);
       socketService.off('kicked', handleKicked);
-      socketService.off('offer', handleOffer);
-      socketService.off('answer', handleAnswer);
-      socketService.off('ice-candidate', handleIceCandidate);
+
     };
   }, []);
 
   const createRoom = useCallback((userName: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       socketService.emit('create-room', { userName }, (response: any) => {
-        if (response.success) {
+        if (response.success && response.room) {
+          setRoomState(response.room);
+          setIsHost(true);
+          setError(null);
           resolve();
         } else {
-          reject(new Error(response.error));
+          const errorMsg = response.error || 'Failed to create room';
+          setError(errorMsg);
+          reject(new Error(errorMsg));
         }
       });
     });
@@ -190,10 +161,20 @@ export function useRoom() {
   const joinRoom = useCallback((code: string, userName: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       socketService.emit('join-room', { code, userName }, (response: any) => {
-        if (response.success) {
+        if (response.success && response.room) {
+          setRoomState(response.room);
+          setIsHost(response.room.host.id === socketService.id);
+          setError(null);
+
+          response.room.users.forEach((user: any) => {
+            // Voice service handles connections automatically
+          });
+
           resolve();
         } else {
-          reject(new Error(response.error));
+          const errorMsg = response.error || 'Failed to join room';
+          setError(errorMsg);
+          reject(new Error(errorMsg));
         }
       });
     });
@@ -205,7 +186,7 @@ export function useRoom() {
       setRoomState(null);
       setIsHost(false);
       setSpeakingUsers(new Set());
-      webrtc.closeAllConnections();
+
     }
   }, [roomState]);
 
@@ -219,13 +200,39 @@ export function useRoom() {
     }
   }, [roomState]);
 
-  const updateAudioState = useCallback((isPlaying: boolean, position: number, fileName?: string) => {
+  const updateAudioState = useCallback((isPlaying: boolean, position: number, currentTrack?: Track) => {
     if (roomState && isHost) {
       socketService.emit('audio-state-changed', {
         code: roomState.code,
         isPlaying,
         position,
-        fileName,
+        currentTrack,
+      });
+    }
+  }, [roomState, isHost]);
+
+  const addToQueue = useCallback((track: Track) => {
+    if (roomState) {
+      socketService.emit('add-to-queue', {
+        code: roomState.code,
+        track,
+      });
+    }
+  }, [roomState]);
+
+  const removeFromQueue = useCallback((trackId: string) => {
+    if (roomState) {
+      socketService.emit('remove-from-queue', {
+        code: roomState.code,
+        trackId,
+      });
+    }
+  }, [roomState]);
+
+  const nextTrack = useCallback(() => {
+    if (roomState && isHost) {
+      socketService.emit('next-track', {
+        code: roomState.code,
       });
     }
   }, [roomState, isHost]);
@@ -250,6 +257,9 @@ export function useRoom() {
     leaveRoom,
     syncAudio,
     updateAudioState,
+    addToQueue,
+    removeFromQueue,
+    nextTrack,
     kickUser,
   };
 }

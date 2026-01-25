@@ -1,43 +1,37 @@
-import { v4 as uuidv4 } from 'uuid';
 import { FriendSession, Friend, ChatMessage } from './types';
+import prisma from './lib/prisma';
 
 export class FriendManager {
   private sessions: Map<string, FriendSession> = new Map();
   private socketToUser: Map<string, string> = new Map();
-  private friendCodeToUser: Map<string, string> = new Map();
-  private chatMessages: ChatMessage[] = [];
+  private readonly MAX_SESSIONS = 5000;
 
-  generateFriendCode(): string {
-    let code: string;
-    do {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let randomPart = '';
-      for (let i = 0; i < 8; i++) {
-        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+  async registerSocket(socketId: string, userId: string, userName: string, friendCode: string): Promise<Friend[]> {
+    // Basic session limit protection
+    if (this.sessions.size >= this.MAX_SESSIONS) {
+      const offlineUserId = Array.from(this.sessions.keys()).find(id => this.sessions.get(id)?.status === 'offline');
+      if (offlineUserId) {
+        const oldSession = this.sessions.get(offlineUserId);
+        if (oldSession) {
+          this.socketToUser.delete(oldSession.socketId);
+          this.sessions.delete(offlineUserId);
+        }
       }
-      code = `F-${randomPart}`;
-    } while (this.friendCodeToUser.has(code));
-    return code;
-  }
+    }
 
-  createSession(socketId: string, userName: string): { friendCode: string; friends: Friend[] } {
-    const userId = uuidv4();
-    const friendCode = this.generateFriendCode();
-    
     const session: FriendSession = {
       userId,
       userName,
       friendCode,
       socketId,
-      friends: new Set(),
+      friends: new Set(), // We'll populate this from DB if needed for live tracking
       status: 'online',
     };
-    
+
     this.sessions.set(userId, session);
     this.socketToUser.set(socketId, userId);
-    this.friendCodeToUser.set(friendCode, userId);
-    
-    return { friendCode, friends: this.getFriendsByUser(userId) };
+
+    return this.getFriendsByUser(userId);
   }
 
   getSessionBySocketId(socketId: string): FriendSession | undefined {
@@ -49,42 +43,65 @@ export class FriendManager {
     return this.sessions.get(userId);
   }
 
-  getSessionByFriendCode(friendCode: string): FriendSession | undefined {
-    const userId = this.friendCodeToUser.get(friendCode);
-    return userId ? this.sessions.get(userId) : undefined;
-  }
+  async addFriend(userId: string, friendCode: string): Promise<{ success: boolean; error?: string; friend?: Friend }> {
+    try {
+      const friendUser = await prisma.user.findUnique({ where: { friendCode } });
 
-  addFriend(userId: string, friendCode: string): { success: boolean; error?: string; friends?: Friend[] } {
-    const userSession = this.sessions.get(userId);
-    const friendSession = this.getSessionByFriendCode(friendCode);
-    
-    if (!userSession) {
-      return { success: false, error: 'User session not found' };
+      if (!friendUser) {
+        return { success: false, error: 'Friend code not found' };
+      }
+
+      if (friendUser.id === userId) {
+        return { success: false, error: 'Cannot add yourself as a friend' };
+      }
+
+      // Check for existing friendship
+      const existing = await prisma.friendship.findFirst({
+        where: {
+          OR: [
+            { userId, friendId: friendUser.id },
+            { userId: friendUser.id, friendId: userId }
+          ]
+        }
+      });
+
+      if (existing) {
+        return { success: false, error: 'Already friends' };
+      }
+
+      // Create bidirectional friendship (one record is enough if we query correctly, 
+      // but let's stick to our schema which had [userId, friendId] unique)
+      await prisma.friendship.create({
+        data: {
+          userId,
+          friendId: friendUser.id,
+          status: 'ACCEPTED'
+        }
+      });
+
+      const friendSession = this.sessions.get(friendUser.id);
+
+      return {
+        success: true,
+        friend: {
+          id: friendUser.id,
+          name: friendUser.username,
+          friendCode: friendUser.friendCode,
+          status: friendSession?.status || 'offline',
+          currentRoomCode: friendSession?.currentRoomCode,
+          addedAt: Date.now()
+        }
+      };
+    } catch (error) {
+      console.error('Add friend DB error:', error);
+      return { success: false, error: 'Internal server error' };
     }
-    
-    if (!friendSession) {
-      return { success: false, error: 'Friend code not found' };
-    }
-    
-    if (userSession.friendCode === friendCode) {
-      return { success: false, error: 'Cannot add yourself as a friend' };
-    }
-    
-    if (userSession.friends.has(friendSession.userId)) {
-      return { success: false, error: 'Already friends' };
-    }
-    
-    // Add bidirectional friendship
-    userSession.friends.add(friendSession.userId);
-    friendSession.friends.add(userId);
-    
-    return { success: true, friends: this.getFriendsByUser(userId) };
   }
 
   updateUserStatus(userId: string, status: FriendSession['status'], roomCode?: string): void {
     const session = this.sessions.get(userId);
     if (!session) return;
-    
+
     session.status = status;
     session.currentRoomCode = roomCode;
   }
@@ -92,74 +109,98 @@ export class FriendManager {
   updateSocketId(userId: string, socketId: string): void {
     const session = this.sessions.get(userId);
     if (!session) return;
-    
-    // Remove old socket mapping
+
     this.socketToUser.delete(session.socketId);
-    
-    // Update to new socket
     session.socketId = socketId;
     this.socketToUser.set(socketId, userId);
   }
 
-  saveMessage(fromId: string, toId: string, message: string, type: 'text' | 'party-invite' = 'text', partyCode?: string): ChatMessage {
+  async saveMessage(fromId: string, toId: string, message: string, type: 'text' | 'party-invite' = 'text', partyCode?: string): Promise<ChatMessage> {
     const fromSession = this.sessions.get(fromId);
-    if (!fromSession) throw new Error('Sender not found');
-    
-    const chatMessage: ChatMessage = {
-      id: uuidv4(),
-      fromUserId: fromId,
-      fromUserName: fromSession.userName,
-      toUserId: toId,
-      message,
-      timestamp: Date.now(),
-      type,
-      partyCode,
-    };
-    
-    this.chatMessages.push(chatMessage);
-    return chatMessage;
-  }
+    const userName = fromSession?.userName || 'Unknown';
 
-  getChatHistory(userId: string, friendId: string): ChatMessage[] {
-    return this.chatMessages
-      .filter(msg => 
-        (msg.fromUserId === userId && msg.toUserId === friendId) ||
-        (msg.fromUserId === friendId && msg.toUserId === userId)
-      )
-      .slice(-100); // Last 100 messages
-  }
-
-  getFriendsByUser(userId: string): Friend[] {
-    const session = this.sessions.get(userId);
-    if (!session) return [];
-    
-    const friends: Friend[] = [];
-    session.friends.forEach(friendId => {
-      const friendSession = this.sessions.get(friendId);
-      if (friendSession) {
-        friends.push({
-          id: friendSession.userId,
-          name: friendSession.userName,
-          friendCode: friendSession.friendCode,
-          status: friendSession.status,
-          currentRoomCode: friendSession.currentRoomCode,
-          addedAt: Date.now(), // In production, store this properly
-        });
+    const dbMessage = await prisma.chatMessage.create({
+      data: {
+        fromUserId: fromId,
+        fromUserName: userName,
+        toUserId: toId,
+        message,
+        type,
+        partyCode
       }
     });
-    
-    return friends;
+
+    return {
+      id: dbMessage.id,
+      fromUserId: dbMessage.fromUserId,
+      fromUserName: dbMessage.fromUserName,
+      toUserId: dbMessage.toUserId,
+      message: dbMessage.message,
+      timestamp: dbMessage.timestamp.getTime(),
+      type: dbMessage.type as 'text' | 'party-invite',
+      partyCode: dbMessage.partyCode || undefined
+    };
+  }
+
+  async getChatHistory(userId: string, friendId: string): Promise<ChatMessage[]> {
+    const messages = await prisma.chatMessage.findMany({
+      where: {
+        OR: [
+          { fromUserId: userId, toUserId: friendId },
+          { fromUserId: friendId, toUserId: userId }
+        ]
+      },
+      orderBy: { timestamp: 'desc' },
+      take: 100
+    });
+
+    return messages.reverse().map(msg => ({
+      id: msg.id,
+      fromUserId: msg.fromUserId,
+      fromUserName: msg.fromUserName,
+      toUserId: msg.toUserId,
+      message: msg.message,
+      timestamp: msg.timestamp.getTime(),
+      type: msg.type as 'text' | 'party-invite',
+      partyCode: msg.partyCode || undefined
+    }));
+  }
+
+  async getFriendsByUser(userId: string): Promise<Friend[]> {
+    const friendships = await prisma.friendship.findMany({
+      where: {
+        OR: [{ userId }, { friendId: userId }]
+      },
+      include: {
+        user: true,
+        friend: true
+      }
+    });
+
+    return friendships.map(fs => {
+      const friendUser = fs.userId === userId ? fs.friend : fs.user;
+      const session = this.sessions.get(friendUser.id);
+
+      return {
+        id: friendUser.id,
+        name: friendUser.username,
+        friendCode: friendUser.friendCode,
+        status: session?.status || 'offline',
+        currentRoomCode: session?.currentRoomCode,
+        addedAt: fs.createdAt.getTime()
+      };
+    });
   }
 
   disconnectUser(socketId: string): string | undefined {
     const userId = this.socketToUser.get(socketId);
     if (!userId) return undefined;
-    
+
     const session = this.sessions.get(userId);
     if (session) {
       session.status = 'offline';
     }
-    
+
     return userId;
   }
 }
