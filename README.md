@@ -60,7 +60,7 @@ npm run electron
 ```
 
 ## Production Deployment
-See [PROD_DEPLOY.md](PROD_DEPLOY.md) for detailed instructions on deploying with Docker.
+See [docs/PROD_DEPLOY.md](docs/PROD_DEPLOY.md) for detailed instructions on deploying with Docker.
 
 ## Project Structure
 ```
