@@ -172,27 +172,66 @@ export function Room({
     }
   }, [speakingUsers.size, volume]);
 
+  // Web-mode file input ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleSelectFile = async () => {
     if (!isHost) return;
 
-    const filePath = await window.electron.selectAudioFile();
-    if (filePath) {
-      const fileName = filePath.split(/[\\/]/).pop() || 'Unknown';
+    if (window.electron) {
+      // Electron Mode
+      const filePath = await window.electron.selectAudioFile();
+      if (filePath) {
+        const fileName = filePath.split(/[\\/]/).pop() || 'Unknown';
+        const track: Track = {
+          id: `local-${Date.now()}`,
+          name: fileName,
+          artists: 'Local File',
+          source: 'local',
+          fileName,
+          duration: 0,
+          addedBy: {
+            id: mySocketId,
+            name:
+              roomState.users.find((u) => u.id === mySocketId)?.name || 'Guest',
+          },
+        };
+        onAddToQueue(track);
+      }
+    } else {
+      // Web Mode: Trigger hidden file input
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    const audio = new Audio(objectUrl);
+
+    audio.onloadedmetadata = () => {
       const track: Track = {
         id: `local-${Date.now()}`,
-        name: fileName,
+        name: file.name,
         artists: 'Local File',
         source: 'local',
-        fileName,
-        duration: 0,
+        fileName: file.name,
+        // For web mode, we might handle the URL differently or pass the blob URL
+        // But for now, let's treat it similar to local but needing special handling in Audio player if possible
+        // Ideally, we'd need to pass the Blob URL to the audio player
+        uri: objectUrl,
+        duration: audio.duration * 1000,
         addedBy: {
           id: mySocketId,
-          name:
-            roomState.users.find((u) => u.id === mySocketId)?.name || 'Guest',
+          name: roomState.users.find((u) => u.id === mySocketId)?.name || 'Guest',
         },
       };
+
       onAddToQueue(track);
-    }
+      // Clean up previous blob URLs if needed, or handle memory management
+    };
   };
 
   const handlePlayPause = async () => {
@@ -619,6 +658,15 @@ export function Room({
             onClose={() => setShowSpotifyModal(false)}
           />
         )}
+
+        {/* Hidden file input for Web Mode */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept="audio/*"
+          style={{ display: 'none' }}
+        />
       </div>
     </>
   );

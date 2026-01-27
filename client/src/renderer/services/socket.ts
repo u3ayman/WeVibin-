@@ -8,6 +8,7 @@ class SocketService {
     if (this.socket?.connected) return;
 
     // Production server IP
+    // Prioritize VITE_SERVER_URL for Vercel/Web deployments
     const SERVER_URL =
       import.meta.env.VITE_SERVER_URL || 'http://41.38.46.220:3001';
     console.log('Socket connecting to:', SERVER_URL);
