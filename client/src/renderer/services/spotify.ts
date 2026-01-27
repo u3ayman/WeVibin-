@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { SPOTIFY_AUTH_URL } from '../config/spotify';
 
 interface SpotifyTrack {
@@ -32,7 +33,7 @@ class SpotifyService {
   private loadToken() {
     const token = localStorage.getItem('spotify_access_token');
     const expiry = localStorage.getItem('spotify_token_expiry');
-    
+
     if (token && expiry) {
       const now = Date.now();
       if (now < parseInt(expiry)) {
@@ -91,7 +92,10 @@ class SpotifyService {
   }
 
   // Initialize Spotify Web Playback SDK
-  async initializePlayer(onReady: () => void, onStateChange: (state: any) => void): Promise<boolean> {
+  async initializePlayer(
+    onReady: () => void,
+    onStateChange: (state: any) => void,
+  ): Promise<boolean> {
     if (!this.accessToken) {
       console.error('[Spotify] No access token');
       return false;
@@ -119,9 +123,12 @@ class SpotifyService {
     });
   }
 
-  private setupPlayer(onReady: () => void, onStateChange: (state: any) => void) {
+  private setupPlayer(
+    onReady: () => void,
+    onStateChange: (state: any) => void,
+  ) {
     this.player = new window.Spotify.Player({
-      name: 'WeVibin\' Player',
+      name: "WeVibin' Player",
       getOAuthToken: (cb: (token: string) => void) => {
         cb(this.accessToken!);
       },
@@ -136,9 +143,12 @@ class SpotifyService {
     });
 
     // Not Ready
-    this.player.addListener('not_ready', ({ device_id }: { device_id: string }) => {
-      console.log('[Spotify] Device ID has gone offline', device_id);
-    });
+    this.player.addListener(
+      'not_ready',
+      ({ device_id }: { device_id: string }) => {
+        console.log('[Spotify] Device ID has gone offline', device_id);
+      },
+    );
 
     // Player state changed
     this.player.addListener('player_state_changed', (state: any) => {
@@ -148,18 +158,27 @@ class SpotifyService {
     });
 
     // Errors
-    this.player.addListener('initialization_error', ({ message }: { message: string }) => {
-      console.error('[Spotify] Initialization error:', message);
-    });
+    this.player.addListener(
+      'initialization_error',
+      ({ message }: { message: string }) => {
+        console.error('[Spotify] Initialization error:', message);
+      },
+    );
 
-    this.player.addListener('authentication_error', ({ message }: { message: string }) => {
-      console.error('[Spotify] Authentication error:', message);
-      this.clearToken();
-    });
+    this.player.addListener(
+      'authentication_error',
+      ({ message }: { message: string }) => {
+        console.error('[Spotify] Authentication error:', message);
+        this.clearToken();
+      },
+    );
 
-    this.player.addListener('account_error', ({ message }: { message: string }) => {
-      console.error('[Spotify] Account error:', message);
-    });
+    this.player.addListener(
+      'account_error',
+      ({ message }: { message: string }) => {
+        console.error('[Spotify] Account error:', message);
+      },
+    );
 
     this.player.connect();
   }
@@ -206,12 +225,15 @@ class SpotifyService {
     if (!this.accessToken) return;
 
     try {
-      await fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${positionMs}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
+      await fetch(
+        `https://api.spotify.com/v1/me/player/seek?position_ms=${positionMs}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
         },
-      });
+      );
       console.log('[Spotify] Seeked to:', positionMs);
     } catch (error) {
       console.error('[Spotify] Seek error:', error);
@@ -222,19 +244,25 @@ class SpotifyService {
     if (!this.accessToken) return;
 
     try {
-      await fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${volumePercent}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
+      await fetch(
+        `https://api.spotify.com/v1/me/player/volume?volume_percent=${volumePercent}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
         },
-      });
+      );
     } catch (error) {
       console.error('[Spotify] Volume error:', error);
     }
   }
 
   // Search
-  async searchTracks(query: string, limit: number = 20): Promise<SpotifyTrack[]> {
+  async searchTracks(
+    query: string,
+    limit: number = 20,
+  ): Promise<SpotifyTrack[]> {
     if (!this.accessToken) return [];
 
     try {
@@ -244,7 +272,7 @@ class SpotifyService {
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
           },
-        }
+        },
       );
 
       const data = await response.json();
@@ -260,11 +288,14 @@ class SpotifyService {
     if (!this.accessToken) return [];
 
     try {
-      const response = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
+      const response = await fetch(
+        'https://api.spotify.com/v1/me/playlists?limit=50',
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
         },
-      });
+      );
 
       const data = await response.json();
       return data.items || [];
@@ -285,7 +316,7 @@ class SpotifyService {
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
           },
-        }
+        },
       );
 
       const data = await response.json();

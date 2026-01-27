@@ -14,7 +14,7 @@ interface ToastProps {
 
 export function Toast({ toasts, onDismiss }: ToastProps) {
   useEffect(() => {
-    toasts.forEach(toast => {
+    toasts.forEach((toast) => {
       const timer = setTimeout(() => {
         onDismiss(toast.id);
       }, 3000);
@@ -46,18 +46,20 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: '20px',
-      right: '20px',
-      zIndex: 9999,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '12px',
-      pointerEvents: 'none',
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        zIndex: 9999,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        pointerEvents: 'none',
+      }}
+    >
       <AnimatePresence>
-        {toasts.map(toast => (
+        {toasts.map((toast) => (
           <motion.div
             key={toast.id}
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
@@ -90,11 +92,11 @@ export function useToast() {
 
   const showToast = (message: string, type: ToastMessage['type'] = 'info') => {
     const id = Date.now().toString();
-    setToasts(prev => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type }]);
   };
 
   const dismissToast = (id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
   return {

@@ -17,6 +17,6 @@ export default defineConfig({
       protocol: 'wss',
       host: 'localhost',
       port: 5176,
-    }
+    },
   },
 });

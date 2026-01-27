@@ -71,7 +71,9 @@ declare global {
         mimeType?: string;
         error?: string;
       }>;
-      writeClipboard: (text: string) => Promise<{ success: boolean; error?: string }>;
+      writeClipboard: (
+        text: string,
+      ) => Promise<{ success: boolean; error?: string }>;
     };
   }
 }

@@ -56,7 +56,10 @@ export interface ChatMessage {
 export interface WebRTCSignal {
   to: string;
   from?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   offer?: any; // Ideally RTCSessionDescriptionInit, but any for signaling JSON
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   answer?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   candidate?: any;
 }

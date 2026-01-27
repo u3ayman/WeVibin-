@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import io, { Socket } from 'socket.io-client';
 
 class SocketService {
@@ -7,7 +8,9 @@ class SocketService {
     if (this.socket?.connected) return;
 
     // Production server IP
-    const SERVER_URL = process.env.VITE_SERVER_URL || 'http://41.38.46.220:3001';
+    const SERVER_URL =
+      import.meta.env.VITE_SERVER_URL || 'http://41.38.46.220:3001';
+    console.log('Socket connecting to:', SERVER_URL);
 
     this.socket = io(SERVER_URL, {
       transports: ['websocket', 'polling'],

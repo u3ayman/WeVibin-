@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Home as HomeIcon, Users as UsersIcon, Settings as SettingsIcon, LogOut as LogOutIcon, Music } from 'lucide-react';
+import {
+  Home as HomeIcon,
+  Users as UsersIcon,
+  Settings as SettingsIcon,
+  LogOut as LogOutIcon,
+  Music,
+} from 'lucide-react';
 import { Home } from './components/Home';
 import { Room } from './components/Room';
 import { FriendsList } from './components/FriendsList';
@@ -13,7 +19,7 @@ import { useRoom } from './hooks/useRoom';
 import { usePTT } from './hooks/usePTT';
 import { useFriends } from './hooks/useFriends';
 import { Friend } from './types';
-import { voiceService } from './services/voice';
+
 import { socketService } from './services/socket';
 import { useAuth } from './context/AuthContext';
 
@@ -173,7 +179,7 @@ export function App() {
         selectedFriend.id,
         `Join my party! Room code: ${roomCode}`,
         'party-invite',
-        roomCode
+        roomCode,
       );
     }
   };
@@ -195,7 +201,7 @@ export function App() {
         <header className="wv-topbar">
           <div className="wv-brand">
             <span className="wv-brand__dot" />
-            <span className="wv-brand__name">WeVibin'</span>
+            <span className="wv-brand__name">WeVibin&apos;</span>
           </div>
 
           {!isCompact && (
@@ -318,9 +324,7 @@ export function App() {
           />
         )}
 
-        {currentView === 'settings' && (
-          <Settings />
-        )}
+        {currentView === 'settings' && <Settings />}
       </div>
 
       {/* Chat Window Modal */}

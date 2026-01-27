@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Room, Track } from './types';
 import prisma from './lib/prisma';
 
@@ -27,14 +28,16 @@ export class RoomManager {
         hostId,
         status: 'active',
         lastActive: new Date(),
-        queue: []
-      }
+        queue: [],
+      },
     });
 
     const room: Room = {
       code,
       host: { id: hostId, name: hostName },
-      users: new Map([[hostId, { id: hostId, name: hostName, socketId: hostId }]]),
+      users: new Map([
+        [hostId, { id: hostId, name: hostName, socketId: hostId }],
+      ]),
       queue: [],
       audioState: {
         isPlaying: false,
@@ -51,7 +54,7 @@ export class RoomManager {
 
     const dbRoom = await prisma.room.findUnique({
       where: { code, status: 'active' },
-      include: { host: true }
+      include: { host: true },
     });
 
     if (dbRoom) {
@@ -66,7 +69,7 @@ export class RoomManager {
         host: { id: dbRoom.hostId, name: dbRoom.host.username },
         users: new Map(),
         queue: (dbRoom.queue as any) || [],
-        audioState
+        audioState,
       };
       this.rooms.set(code, room);
       return room;
@@ -75,7 +78,11 @@ export class RoomManager {
     return undefined;
   }
 
-  async addUserToRoom(roomCode: string, userId: string, userName: string): Promise<boolean> {
+  async addUserToRoom(
+    roomCode: string,
+    userId: string,
+    userName: string,
+  ): Promise<boolean> {
     const room = await this.getRoom(roomCode);
     if (!room) return false;
 
@@ -83,7 +90,7 @@ export class RoomManager {
 
     await prisma.room.update({
       where: { code: roomCode },
-      data: { lastActive: new Date() }
+      data: { lastActive: new Date() },
     });
 
     return true;
@@ -106,14 +113,17 @@ export class RoomManager {
 
       await prisma.room.update({
         where: { code: roomCode },
-        data: { hostId: newHost.id }
+        data: { hostId: newHost.id },
       });
     }
 
     return false;
   }
 
-  async updateAudioState(roomCode: string, state: Partial<Room['audioState']>): Promise<boolean> {
+  async updateAudioState(
+    roomCode: string,
+    state: Partial<Room['audioState']>,
+  ): Promise<boolean> {
     const room = this.rooms.get(roomCode);
     if (!room) return false;
 
@@ -128,8 +138,8 @@ export class RoomManager {
         where: { code: roomCode },
         data: {
           lastAudioState: room.audioState as any,
-          lastActive: new Date()
-        }
+          lastActive: new Date(),
+        },
       });
     }
 
@@ -146,33 +156,37 @@ export class RoomManager {
       where: { code: roomCode },
       data: {
         queue: room.queue as any,
-        lastActive: new Date()
-      }
+        lastActive: new Date(),
+      },
     });
 
     return true;
   }
 
-  async removeFromQueue(roomCode: string, trackId: string, userId: string): Promise<boolean> {
+  async removeFromQueue(
+    roomCode: string,
+    trackId: string,
+    userId: string,
+  ): Promise<boolean> {
     const room = await this.getRoom(roomCode);
     if (!room) return false;
 
     // Only host or the person who added it can remove
-    const track = room.queue.find(t => t.id === trackId);
+    const track = room.queue.find((t) => t.id === trackId);
     if (!track) return false;
 
     if (room.host.id !== userId && track.addedBy.id !== userId) {
       return false;
     }
 
-    room.queue = room.queue.filter(t => t.id !== trackId);
+    room.queue = room.queue.filter((t) => t.id !== trackId);
 
     await prisma.room.update({
       where: { code: roomCode },
       data: {
         queue: room.queue as any,
-        lastActive: new Date()
-      }
+        lastActive: new Date(),
+      },
     });
 
     return true;
@@ -200,21 +214,29 @@ export class RoomManager {
       data: {
         queue: room.queue as any,
         lastAudioState: room.audioState as any,
-        lastActive: new Date()
-      }
+        lastActive: new Date(),
+      },
     });
 
     return room.audioState.currentTrack || null;
   }
 
-  async kickUser(roomCode: string, hostId: string, targetUserId: string): Promise<boolean> {
+  async kickUser(
+    roomCode: string,
+    hostId: string,
+    targetUserId: string,
+  ): Promise<boolean> {
     const room = this.rooms.get(roomCode);
     if (!room || room.host.id !== hostId) return false;
 
     return this.removeUserFromRoom(roomCode, targetUserId);
   }
 
-  async transferHost(roomCode: string, currentHostId: string, newHostId: string): Promise<boolean> {
+  async transferHost(
+    roomCode: string,
+    currentHostId: string,
+    newHostId: string,
+  ): Promise<boolean> {
     const room = this.rooms.get(roomCode);
     if (!room || room.host.id !== currentHostId) return false;
 
@@ -225,13 +247,15 @@ export class RoomManager {
 
     await prisma.room.update({
       where: { code: roomCode },
-      data: { hostId: newHost.id }
+      data: { hostId: newHost.id },
     });
 
     return true;
   }
 
-  getRoomUsers(roomCode: string): Array<{ id: string; name: string; socketId: string }> {
+  getRoomUsers(
+    roomCode: string,
+  ): Array<{ id: string; name: string; socketId: string }> {
     const room = this.rooms.get(roomCode);
     if (!room) return [];
     return Array.from(room.users.values());
@@ -243,9 +267,9 @@ export class RoomManager {
     const result = await prisma.room.updateMany({
       where: {
         status: 'active',
-        lastActive: { lt: oneDayAgo }
+        lastActive: { lt: oneDayAgo },
       },
-      data: { status: 'closed' }
+      data: { status: 'closed' },
     });
 
     if (result.count > 0) {

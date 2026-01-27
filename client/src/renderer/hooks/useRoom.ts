@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { socketService } from '../services/socket';
 import { RoomState, Track } from '../types';
 
-
 export function useRoom() {
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -11,8 +10,6 @@ export function useRoom() {
   const [speakingUsers, setSpeakingUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-
-
     const handleConnect = () => {
       setIsConnected(true);
       setError(null);
@@ -23,9 +20,13 @@ export function useRoom() {
     };
 
     const handleUserJoined = (data: { userId: string; userName: string }) => {
-      setRoomState(prev => {
+      setRoomState((prev) => {
         if (!prev) return prev;
-        const newUser = { id: data.userId, name: data.userName, socketId: data.userId };
+        const newUser = {
+          id: data.userId,
+          name: data.userName,
+          socketId: data.userId,
+        };
         return {
           ...prev,
           users: [...prev.users, newUser],
@@ -38,24 +39,25 @@ export function useRoom() {
     };
 
     const handleUserLeft = (data: { userId: string; userName: string }) => {
-      setRoomState(prev => {
+      setRoomState((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          users: prev.users.filter(u => u.id !== data.userId),
+          users: prev.users.filter((u) => u.id !== data.userId),
         };
       });
 
-
-      setSpeakingUsers(prev => {
+      setSpeakingUsers((prev) => {
         const next = new Set(prev);
         next.delete(data.userId);
         return next;
       });
     };
 
-    const handleHostChanged = (data: { newHost: { id: string; name: string } }) => {
-      setRoomState(prev => {
+    const handleHostChanged = (data: {
+      newHost: { id: string; name: string };
+    }) => {
+      setRoomState((prev) => {
         if (!prev) return prev;
         return { ...prev, host: data.newHost };
       });
@@ -63,14 +65,19 @@ export function useRoom() {
     };
 
     const handleAudioSync = (audioState: RoomState['audioState']) => {
-      setRoomState(prev => {
+      setRoomState((prev) => {
         if (!prev) return prev;
         return { ...prev, audioState };
       });
     };
 
-    const handleAudioStateChanged = (data: { isPlaying: boolean; position: number; currentTrack?: Track; timestamp: number }) => {
-      setRoomState(prev => {
+    const handleAudioStateChanged = (data: {
+      isPlaying: boolean;
+      position: number;
+      currentTrack?: Track;
+      timestamp: number;
+    }) => {
+      setRoomState((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
@@ -85,18 +92,18 @@ export function useRoom() {
     };
 
     const handleQueueUpdated = (data: { queue: Track[] }) => {
-      setRoomState(prev => {
+      setRoomState((prev) => {
         if (!prev) return prev;
         return { ...prev, queue: data.queue };
       });
     };
 
     const handlePTTStarted = (data: { userId: string }) => {
-      setSpeakingUsers(prev => new Set(prev).add(data.userId));
+      setSpeakingUsers((prev) => new Set(prev).add(data.userId));
     };
 
     const handlePTTEnded = (data: { userId: string }) => {
-      setSpeakingUsers(prev => {
+      setSpeakingUsers((prev) => {
         const next = new Set(prev);
         next.delete(data.userId);
         return next;
@@ -107,10 +114,7 @@ export function useRoom() {
       setRoomState(null);
       setIsHost(false);
       setError('You were kicked from the room');
-
     };
-
-
 
     socketService.on('connect', handleConnect);
     socketService.on('disconnect', handleDisconnect);
@@ -124,7 +128,6 @@ export function useRoom() {
     socketService.on('ptt-ended', handlePTTEnded);
     socketService.on('kicked', handleKicked);
 
-
     return () => {
       socketService.off('connect', handleConnect);
       socketService.off('disconnect', handleDisconnect);
@@ -137,12 +140,12 @@ export function useRoom() {
       socketService.off('ptt-started', handlePTTStarted);
       socketService.off('ptt-ended', handlePTTEnded);
       socketService.off('kicked', handleKicked);
-
     };
   }, []);
 
   const createRoom = useCallback((userName: string): Promise<void> => {
     return new Promise((resolve, reject) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       socketService.emit('create-room', { userName }, (response: any) => {
         if (response.success && response.room) {
           setRoomState(response.room);
@@ -158,27 +161,31 @@ export function useRoom() {
     });
   }, []);
 
-  const joinRoom = useCallback((code: string, userName: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      socketService.emit('join-room', { code, userName }, (response: any) => {
-        if (response.success && response.room) {
-          setRoomState(response.room);
-          setIsHost(response.room.host.id === socketService.id);
-          setError(null);
+  const joinRoom = useCallback(
+    (code: string, userName: string): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        socketService.emit('join-room', { code, userName }, (response: any) => {
+          if (response.success && response.room) {
+            setRoomState(response.room);
+            setIsHost(response.room.host.id === socketService.id);
+            setError(null);
 
-          response.room.users.forEach((user: any) => {
-            // Voice service handles connections automatically
-          });
+            response.room.users.forEach(() => {
+              // Voice service handles connections automatically
+            });
 
-          resolve();
-        } else {
-          const errorMsg = response.error || 'Failed to join room';
-          setError(errorMsg);
-          reject(new Error(errorMsg));
-        }
+            resolve();
+          } else {
+            const errorMsg = response.error || 'Failed to join room';
+            setError(errorMsg);
+            reject(new Error(errorMsg));
+          }
+        });
       });
-    });
-  }, []);
+    },
+    [],
+  );
 
   const leaveRoom = useCallback(() => {
     if (roomState) {
@@ -186,48 +193,59 @@ export function useRoom() {
       setRoomState(null);
       setIsHost(false);
       setSpeakingUsers(new Set());
-
     }
   }, [roomState]);
 
-  const syncAudio = useCallback((position: number, isPlaying: boolean) => {
-    if (roomState) {
-      socketService.emit('sync-audio', {
-        code: roomState.code,
-        position,
-        isPlaying,
-      });
-    }
-  }, [roomState]);
+  const syncAudio = useCallback(
+    (position: number, isPlaying: boolean) => {
+      if (roomState) {
+        socketService.emit('sync-audio', {
+          code: roomState.code,
+          position,
+          isPlaying,
+        });
+      }
+    },
+    [roomState],
+  );
 
-  const updateAudioState = useCallback((isPlaying: boolean, position: number, currentTrack?: Track) => {
-    if (roomState && isHost) {
-      socketService.emit('audio-state-changed', {
-        code: roomState.code,
-        isPlaying,
-        position,
-        currentTrack,
-      });
-    }
-  }, [roomState, isHost]);
+  const updateAudioState = useCallback(
+    (isPlaying: boolean, position: number, currentTrack?: Track) => {
+      if (roomState && isHost) {
+        socketService.emit('audio-state-changed', {
+          code: roomState.code,
+          isPlaying,
+          position,
+          currentTrack,
+        });
+      }
+    },
+    [roomState, isHost],
+  );
 
-  const addToQueue = useCallback((track: Track) => {
-    if (roomState) {
-      socketService.emit('add-to-queue', {
-        code: roomState.code,
-        track,
-      });
-    }
-  }, [roomState]);
+  const addToQueue = useCallback(
+    (track: Track) => {
+      if (roomState) {
+        socketService.emit('add-to-queue', {
+          code: roomState.code,
+          track,
+        });
+      }
+    },
+    [roomState],
+  );
 
-  const removeFromQueue = useCallback((trackId: string) => {
-    if (roomState) {
-      socketService.emit('remove-from-queue', {
-        code: roomState.code,
-        trackId,
-      });
-    }
-  }, [roomState]);
+  const removeFromQueue = useCallback(
+    (trackId: string) => {
+      if (roomState) {
+        socketService.emit('remove-from-queue', {
+          code: roomState.code,
+          trackId,
+        });
+      }
+    },
+    [roomState],
+  );
 
   const nextTrack = useCallback(() => {
     if (roomState && isHost) {
@@ -237,14 +255,17 @@ export function useRoom() {
     }
   }, [roomState, isHost]);
 
-  const kickUser = useCallback((userId: string) => {
-    if (roomState && isHost) {
-      socketService.emit('kick-user', {
-        code: roomState.code,
-        targetUserId: userId,
-      });
-    }
-  }, [roomState, isHost]);
+  const kickUser = useCallback(
+    (userId: string) => {
+      if (roomState && isHost) {
+        socketService.emit('kick-user', {
+          code: roomState.code,
+          targetUserId: userId,
+        });
+      }
+    },
+    [roomState, isHost],
+  );
 
   return {
     roomState,

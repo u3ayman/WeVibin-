@@ -1,4 +1,3 @@
-
 import { app, BrowserWindow, ipcMain, dialog, clipboard } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -18,6 +17,8 @@ function createWindow() {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      webSecurity: false,
+      allowRunningInsecureContent: true,
     },
   });
 
@@ -26,8 +27,12 @@ function createWindow() {
     (_event, errorCode, errorDescription, validatedURL) => {
       // Helpful when Electron shows a blank/white page.
       // Common causes: dev server not running, cert issues, wrong protocol.
-      console.error('[did-fail-load]', { errorCode, errorDescription, validatedURL });
-    }
+      console.error('[did-fail-load]', {
+        errorCode,
+        errorDescription,
+        validatedURL,
+      });
+    },
   );
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
@@ -44,14 +49,16 @@ function createWindow() {
   });
 
   // Handle permission requests (e.g., for microphone access)
-  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowedPermissions = ['media'];
-    if (allowedPermissions.includes(permission)) {
-      callback(true);
-    } else {
-      callback(false);
-    }
-  });
+  mainWindow.webContents.session.setPermissionRequestHandler(
+    (webContents, permission, callback) => {
+      const allowedPermissions = ['media'];
+      if (allowedPermissions.includes(permission)) {
+        callback(true);
+      } else {
+        callback(false);
+      }
+    },
+  );
 
   // In development, load from Vite dev server
   if (process.env.NODE_ENV === 'development') {
@@ -65,8 +72,10 @@ function createWindow() {
         return;
       }
 
-      mainWindow?.loadURL(url).catch((err) => {
-        console.log(`[loadURL] attempt ${retryCount + 1} failed, retrying in 2s...`);
+      mainWindow?.loadURL(url).catch(() => {
+        console.log(
+          `[loadURL] attempt ${retryCount + 1} failed, retrying in 2s...`,
+        );
         setTimeout(() => loadWithRetry(url, retryCount + 1), 2000);
       });
     };
@@ -99,7 +108,12 @@ app.on('activate', () => {
 ipcMain.handle('select-audio-file', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
-    filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'] }],
+    filters: [
+      {
+        name: 'Audio',
+        extensions: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'],
+      },
+    ],
   });
   return result.filePaths[0];
 });
@@ -117,11 +131,11 @@ ipcMain.handle('select-audio-folder', async () => {
   try {
     const files = fs.readdirSync(folderPath);
     const audioFiles = files
-      .filter(file => {
+      .filter((file) => {
         const ext = path.extname(file).toLowerCase();
         return audioExtensions.includes(ext);
       })
-      .map(file => path.join(folderPath, file));
+      .map((file) => path.join(folderPath, file));
 
     return audioFiles;
   } catch (error) {
@@ -185,4 +199,3 @@ ipcMain.handle('write-clipboard', async (_event, text: string) => {
     return { success: false, error: String(error) };
   }
 });
-

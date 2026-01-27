@@ -5,14 +5,14 @@ import rateLimit from 'express-rate-limit';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
 import { z as zod } from 'zod';
-import * as Sentry from "@sentry/node";
-import { nodeProfilingIntegration } from "@sentry/profiling-node";
+import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import prisma from './lib/prisma';
 import { hashPassword, comparePassword, generateToken } from './utils/auth';
 import { socketAuthMiddleware } from './middleware/authMiddleware';
 import { RoomManager } from './rooms';
 import { FriendManager } from './friends';
-import { WebRTCSignal, Track } from './types';
+import { Track } from './types';
 import logger from './utils/logger';
 
 // Load environment variables
@@ -22,9 +22,7 @@ dotenv.config();
 if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
-    integrations: [
-      nodeProfilingIntegration(),
-    ],
+    integrations: [nodeProfilingIntegration()],
     tracesSampleRate: 1.0,
     profilesSampleRate: 1.0,
   });
@@ -33,7 +31,9 @@ if (process.env.SENTRY_DSN) {
 
 // Validate critical environment variables
 const requiredEnv = ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'];
-const missingEnv = requiredEnv.filter(key => !process.env[key] || process.env[key]?.includes('your_'));
+const missingEnv = requiredEnv.filter(
+  (key) => !process.env[key] || process.env[key]?.includes('your_'),
+);
 if (missingEnv.length > 0) {
   logger.warn({ missingEnv }, 'Missing or placeholder environment variables');
 }
@@ -75,12 +75,21 @@ if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);
 }
 
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? process.env.ALLOWED_ORIGINS?.split(',') || []
-    : ['https://localhost:5176', 'http://localhost:5176', 'https://localhost:5173', 'http://localhost:5173', 'http://localhost:3000'],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? process.env.ALLOWED_ORIGINS?.split(',') || []
+        : [
+            'https://localhost:5176',
+            'http://localhost:5176',
+            'https://localhost:5173',
+            'http://localhost:5173',
+            'http://localhost:3000',
+          ],
+    credentials: true,
+  }),
+);
 
 app.use(express.json());
 
@@ -116,17 +125,23 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const validated = registerSchema.safeParse(req.body);
     if (!validated.success) {
-      return res.status(400).json({ success: false, error: 'Invalid input', details: validated.error.format() });
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid input',
+        details: validated.error.format(),
+      });
     }
 
     const { email, password, username } = validated.data;
 
     const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ email }, { username }] }
+      where: { OR: [{ email }, { username }] },
     });
 
     if (existingUser) {
-      return res.status(400).json({ success: false, error: 'User already exists' });
+      return res
+        .status(400)
+        .json({ success: false, error: 'User already exists' });
     }
 
     const hashedPassword = await hashPassword(password);
@@ -141,7 +156,9 @@ app.post('/api/auth/register', async (req, res) => {
         randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
       }
       friendCode = `F-${randomPart}`;
-      const existingCode = await prisma.user.findUnique({ where: { friendCode } });
+      const existingCode = await prisma.user.findUnique({
+        where: { friendCode },
+      });
       if (!existingCode) codeExists = false;
     }
 
@@ -150,12 +167,20 @@ app.post('/api/auth/register', async (req, res) => {
         email,
         passwordHash: hashedPassword,
         username,
-        friendCode
-      }
+        friendCode,
+      },
     });
 
     const token = generateToken(user.id, user.username);
-    res.status(201).json({ success: true, token, user: { id: user.id, username: user.username, friendCode: user.friendCode } });
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        friendCode: user.friendCode,
+      },
+    });
   } catch (error) {
     logger.error({ error }, 'Registration error');
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -173,16 +198,28 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Invalid credentials' });
     }
 
     const isValid = await comparePassword(password, user.passwordHash);
     if (!isValid) {
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Invalid credentials' });
     }
 
     const token = generateToken(user.id, user.username);
-    res.json({ success: true, token, user: { id: user.id, username: user.username, friendCode: user.friendCode } });
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        friendCode: user.friendCode,
+      },
+    });
   } catch (error) {
     logger.error({ error }, 'Login error');
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -192,11 +229,18 @@ app.post('/api/auth/login', async (req, res) => {
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production'
-      ? process.env.ALLOWED_ORIGINS?.split(',') || []
-      : ['https://localhost:5176', 'http://localhost:5176', 'https://localhost:5173', 'http://localhost:5173', 'http://localhost:3000'],
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? process.env.ALLOWED_ORIGINS?.split(',') || []
+        : [
+            'https://localhost:5176',
+            'http://localhost:5176',
+            'https://localhost:5173',
+            'http://localhost:5173',
+            'http://localhost:3000',
+          ],
     methods: ['GET', 'POST'],
-    credentials: true
+    credentials: true,
   },
   transports: ['websocket', 'polling'],
   allowEIO3: true,
@@ -211,25 +255,29 @@ const roomManager = new RoomManager();
 const friendManager = new FriendManager();
 
 // --- Background Cleanup Job ---
-setInterval(async () => {
-  try {
-    console.log('[Maintenance] Starting cleanup job...');
-    await roomManager.runCleanup();
+setInterval(
+  async () => {
+    try {
+      console.log('[Maintenance] Starting cleanup job...');
+      await roomManager.runCleanup();
 
-    // Prune very old messages (> 30 days)
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const pruneResult = await prisma.chatMessage.deleteMany({
-      where: { timestamp: { lt: thirtyDaysAgo } }
-    });
-    if (pruneResult.count > 0) {
-      console.log(`[Maintenance] Pruned ${pruneResult.count} old messages`);
+      // Prune very old messages (> 30 days)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const pruneResult = await prisma.chatMessage.deleteMany({
+        where: { timestamp: { lt: thirtyDaysAgo } },
+      });
+      if (pruneResult.count > 0) {
+        console.log(`[Maintenance] Pruned ${pruneResult.count} old messages`);
+      }
+    } catch (error) {
+      console.error('[Maintenance] Cleanup error:', error);
     }
-  } catch (error) {
-    console.error('[Maintenance] Cleanup error:', error);
-  }
-}, 10 * 60 * 1000); // Every 10 minutes
+  },
+  10 * 60 * 1000,
+); // Every 10 minutes
 
 io.on('connection', async (socket) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const user = (socket as any).user;
   console.log(`Client authenticated: ${user.username} (${socket.id})`);
 
@@ -242,16 +290,21 @@ io.on('connection', async (socket) => {
   }
 
   // Register live session
-  const friends = await friendManager.registerSocket(socket.id, dbUser.id, dbUser.username, dbUser.friendCode);
+  const friends = await friendManager.registerSocket(
+    socket.id,
+    dbUser.id,
+    dbUser.username,
+    dbUser.friendCode,
+  );
 
   // Initial data for client
   socket.emit('init-data', {
     user: {
       id: dbUser.id,
       username: dbUser.username,
-      friendCode: dbUser.friendCode
+      friendCode: dbUser.friendCode,
     },
-    friends
+    friends,
   });
 
   notifyFriendsOfStatusUpdate(dbUser.id);
@@ -267,45 +320,54 @@ io.on('connection', async (socket) => {
       friendManager.updateUserStatus(dbUser.id, 'in-party', room.code);
       notifyFriendsOfStatusUpdate(dbUser.id);
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] Failed to create room:`, error);
+      console.error(
+        `[${new Date().toISOString()}] Failed to create room:`,
+        error,
+      );
       callback({
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to create room'
+        error: error instanceof Error ? error.message : 'Failed to create room',
       });
     }
   });
 
-  socket.on('join-room', async (data: { code: string; userName: string }, callback) => {
-    try {
-      const room = roomManager.getRoom(data.code);
-      if (!room) {
-        callback({ success: false, error: 'Room not found' });
-        return;
+  socket.on(
+    'join-room',
+    async (data: { code: string; userName: string }, callback) => {
+      try {
+        const room = roomManager.getRoom(data.code);
+        if (!room) {
+          callback({ success: false, error: 'Room not found' });
+          return;
+        }
+
+        await roomManager.addUserToRoom(data.code, dbUser.id, dbUser.username);
+        socket.join(data.code);
+
+        // Update friend status
+        friendManager.updateUserStatus(dbUser.id, 'in-party', data.code);
+        notifyFriendsOfStatusUpdate(dbUser.id);
+
+        // Notify existing users
+        socket.to(data.code).emit('user-joined', {
+          userId: dbUser.id,
+          userName: dbUser.username,
+        });
+
+        callback({ success: true, room: serializeRoom(room) });
+        console.log(`${dbUser.username} joined room ${data.code}`);
+      } catch (error) {
+        console.error(
+          `[${new Date().toISOString()}] Failed to join room:`,
+          error,
+        );
+        callback({
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to join room',
+        });
       }
-
-      await roomManager.addUserToRoom(data.code, dbUser.id, dbUser.username);
-      socket.join(data.code);
-
-      // Update friend status
-      friendManager.updateUserStatus(dbUser.id, 'in-party', data.code);
-      notifyFriendsOfStatusUpdate(dbUser.id);
-
-      // Notify existing users
-      socket.to(data.code).emit('user-joined', {
-        userId: dbUser.id,
-        userName: dbUser.username,
-      });
-
-      callback({ success: true, room: serializeRoom(room) });
-      console.log(`${dbUser.username} joined room ${data.code}`);
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Failed to join room:`, error);
-      callback({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to join room'
-      });
-    }
-  });
+    },
+  );
 
   socket.on('leave-room', async (data: { code: string }) => {
     try {
@@ -314,7 +376,10 @@ io.on('connection', async (socket) => {
 
       const wasHost = room.host.id === dbUser.id;
 
-      const roomDeleted = await roomManager.removeUserFromRoom(data.code, dbUser.id);
+      const roomDeleted = await roomManager.removeUserFromRoom(
+        data.code,
+        dbUser.id,
+      );
       socket.leave(data.code);
 
       // Update friend status
@@ -345,47 +410,62 @@ io.on('connection', async (socket) => {
     }
   });
 
-  socket.on('sync-audio', async (data: { code: string; position: number; isPlaying: boolean }) => {
-    try {
-      if (await roomManager.updateAudioState(data.code, {
-        position: data.position,
-        isPlaying: data.isPlaying,
-      })) {
-        const room = await roomManager.getRoom(data.code);
-        if (room) {
-          socket.to(data.code).emit('audio-sync', room.audioState);
+  socket.on(
+    'sync-audio',
+    async (data: { code: string; position: number; isPlaying: boolean }) => {
+      try {
+        if (
+          await roomManager.updateAudioState(data.code, {
+            position: data.position,
+            isPlaying: data.isPlaying,
+          })
+        ) {
+          const room = await roomManager.getRoom(data.code);
+          if (room) {
+            socket.to(data.code).emit('audio-sync', room.audioState);
+          }
         }
+      } catch (error) {
+        console.error('Error syncing audio:', error);
       }
-    } catch (error) {
-      console.error('Error syncing audio:', error);
-    }
-  });
+    },
+  );
 
-  socket.on('audio-state-changed', async (data: { code: string; isPlaying: boolean; position: number; currentTrack?: Track }) => {
-    try {
-      if (await roomManager.updateAudioState(data.code, {
-        isPlaying: data.isPlaying,
-        position: data.position,
-        currentTrack: data.currentTrack,
-      })) {
-        socket.to(data.code).emit('audio-state-changed', {
-          isPlaying: data.isPlaying,
-          position: data.position,
-          currentTrack: data.currentTrack,
-          timestamp: Date.now(),
-        });
+  socket.on(
+    'audio-state-changed',
+    async (data: {
+      code: string;
+      isPlaying: boolean;
+      position: number;
+      currentTrack?: Track;
+    }) => {
+      try {
+        if (
+          await roomManager.updateAudioState(data.code, {
+            isPlaying: data.isPlaying,
+            position: data.position,
+            currentTrack: data.currentTrack,
+          })
+        ) {
+          socket.to(data.code).emit('audio-state-changed', {
+            isPlaying: data.isPlaying,
+            position: data.position,
+            currentTrack: data.currentTrack,
+            timestamp: Date.now(),
+          });
+        }
+      } catch (error) {
+        console.error('Error updating audio state:', error);
       }
-    } catch (error) {
-      console.error('Error updating audio state:', error);
-    }
-  });
+    },
+  );
 
   // Queue events
   socket.on('add-to-queue', async (data: { code: string; track: Track }) => {
     try {
       if (await roomManager.addToQueue(data.code, data.track)) {
         io.to(data.code).emit('queue-updated', {
-          queue: (await roomManager.getRoom(data.code))?.queue || []
+          queue: (await roomManager.getRoom(data.code))?.queue || [],
         });
       }
     } catch (error) {
@@ -393,30 +473,37 @@ io.on('connection', async (socket) => {
     }
   });
 
-  socket.on('remove-from-queue', async (data: { code: string; trackId: string }) => {
-    try {
-      if (await roomManager.removeFromQueue(data.code, data.trackId, dbUser.id)) {
-        io.to(data.code).emit('queue-updated', {
-          queue: (await roomManager.getRoom(data.code))?.queue || []
-        });
+  socket.on(
+    'remove-from-queue',
+    async (data: { code: string; trackId: string }) => {
+      try {
+        if (
+          await roomManager.removeFromQueue(data.code, data.trackId, dbUser.id)
+        ) {
+          io.to(data.code).emit('queue-updated', {
+            queue: (await roomManager.getRoom(data.code))?.queue || [],
+          });
+        }
+      } catch (error) {
+        console.error('Error removing from queue:', error);
       }
-    } catch (error) {
-      console.error('Error removing from queue:', error);
-    }
-  });
+    },
+  );
 
   socket.on('next-track', async (data: { code: string }) => {
     try {
       const nextTrack = await roomManager.nextTrack(data.code, dbUser.id);
-      if (nextTrack !== null || true) { // Always update to reflect empty queue if needed
+      // eslint-disable-next-line no-constant-condition
+      if (nextTrack !== null || true) {
+        // Always update to reflect empty queue if needed
         const room = await roomManager.getRoom(data.code);
         if (room) {
           io.to(data.code).emit('audio-state-changed', {
             ...room.audioState,
-            timestamp: Date.now()
+            timestamp: Date.now(),
           });
           io.to(data.code).emit('queue-updated', {
-            queue: room.queue
+            queue: room.queue,
           });
         }
       }
@@ -425,22 +512,27 @@ io.on('connection', async (socket) => {
     }
   });
 
-  socket.on('kick-user', async (data: { code: string; targetUserId: string }) => {
-    try {
-      const room = await roomManager.getRoom(data.code);
-      if (!room || room.host.id !== dbUser.id) return;
+  socket.on(
+    'kick-user',
+    async (data: { code: string; targetUserId: string }) => {
+      try {
+        const room = await roomManager.getRoom(data.code);
+        if (!room || room.host.id !== dbUser.id) return;
 
-      if (await roomManager.kickUser(data.code, dbUser.id, data.targetUserId)) {
-        // Unfortunately we don't know the target's socket easily here without searching sessions
-        // but for now we emit to the room and the target should handle it if they match
-        io.to(data.code).emit('user-kicked', {
-          userId: data.targetUserId,
-        });
+        if (
+          await roomManager.kickUser(data.code, dbUser.id, data.targetUserId)
+        ) {
+          // Unfortunately we don't know the target's socket easily here without searching sessions
+          // but for now we emit to the room and the target should handle it if they match
+          io.to(data.code).emit('user-kicked', {
+            userId: data.targetUserId,
+          });
+        }
+      } catch (error) {
+        console.error('Error kicking user:', error);
       }
-    } catch (error) {
-      console.error('Error kicking user:', error);
-    }
-  });
+    },
+  );
 
   // PTT events
   socket.on('ptt-start', (data: { roomCode: string }) => {
@@ -452,6 +544,7 @@ io.on('connection', async (socket) => {
   });
 
   // Voice Relay (WebSocket based)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   socket.on('voice-data', (data: { audio: any }) => {
     // Current user room
     const session = friendManager.getSessionByUserId(dbUser.id);
@@ -459,7 +552,7 @@ io.on('connection', async (socket) => {
       // Relay to everyone in the room except sender
       socket.to(session.currentRoomCode).emit('voice-data', {
         userId: dbUser.id,
-        audio: data.audio
+        audio: data.audio,
       });
     }
   });
@@ -470,17 +563,23 @@ io.on('connection', async (socket) => {
       const result = await friendManager.addFriend(dbUser.id, data.friendCode);
       if (result.success && result.friend) {
         // Notify the friend if they are online
-        const friendSession = friendManager.getSessionByUserId(result.friend.id);
+        const friendSession = friendManager.getSessionByUserId(
+          result.friend.id,
+        );
         if (friendSession) {
           const userAsFriend = {
             id: dbUser.id,
             name: dbUser.username,
             friendCode: dbUser.friendCode,
-            status: friendManager.getSessionByUserId(dbUser.id)?.status || 'online',
-            currentRoomCode: friendManager.getSessionByUserId(dbUser.id)?.currentRoomCode,
+            status:
+              friendManager.getSessionByUserId(dbUser.id)?.status || 'online',
+            currentRoomCode: friendManager.getSessionByUserId(dbUser.id)
+              ?.currentRoomCode,
             addedAt: Date.now(),
           };
-          io.to(friendSession.socketId).emit('friend-added', { friend: userAsFriend });
+          io.to(friendSession.socketId).emit('friend-added', {
+            friend: userAsFriend,
+          });
         }
         callback({ success: true, friend: result.friend });
       } else {
@@ -491,49 +590,80 @@ io.on('connection', async (socket) => {
     }
   });
 
-  socket.on('send-message', async (data: { toUserId: string; message: string; type?: 'text' | 'party-invite'; partyCode?: string }, callback) => {
-    try {
-      const chatMessage = await friendManager.saveMessage(
-        dbUser.id,
-        data.toUserId,
-        data.message,
-        data.type || 'text',
-        data.partyCode
-      );
+  socket.on(
+    'send-message',
+    async (
+      data: {
+        toUserId: string;
+        message: string;
+        type?: 'text' | 'party-invite';
+        partyCode?: string;
+      },
+      callback,
+    ) => {
+      try {
+        const chatMessage = await friendManager.saveMessage(
+          dbUser.id,
+          data.toUserId,
+          data.message,
+          data.type || 'text',
+          data.partyCode,
+        );
 
-      // Send to recipient if online
-      const recipientSession = friendManager.getSessionByUserId(data.toUserId);
-      if (recipientSession) {
-        io.to(recipientSession.socketId).emit('message-received', chatMessage);
+        // Send to recipient if online
+        const recipientSession = friendManager.getSessionByUserId(
+          data.toUserId,
+        );
+        if (recipientSession) {
+          io.to(recipientSession.socketId).emit(
+            'message-received',
+            chatMessage,
+          );
+        }
+
+        // Confirm to sender
+        callback({ success: true, message: chatMessage });
+      } catch (error) {
+        callback({ success: false, error: 'Failed to send message' });
       }
+    },
+  );
 
-      // Confirm to sender
-      callback({ success: true, message: chatMessage });
-    } catch (error) {
-      callback({ success: false, error: 'Failed to send message' });
-    }
-  });
+  socket.on(
+    'get-chat-history',
+    async (data: { friendId: string }, callback) => {
+      try {
+        const messages = await friendManager.getChatHistory(
+          dbUser.id,
+          data.friendId,
+        );
+        callback({ success: true, messages });
+      } catch (error) {
+        callback({ success: false, error: 'Failed to get chat history' });
+      }
+    },
+  );
 
-  socket.on('get-chat-history', async (data: { friendId: string }, callback) => {
-    try {
-      const messages = await friendManager.getChatHistory(dbUser.id, data.friendId);
-      callback({ success: true, messages });
-    } catch (error) {
-      callback({ success: false, error: 'Failed to get chat history' });
-    }
-  });
-
-  socket.on('update-status', (data: { status: 'online' | 'offline' | 'in-party'; roomCode?: string }) => {
-    try {
-      friendManager.updateUserStatus(dbUser.id, data.status, data.roomCode);
-      notifyFriendsOfStatusUpdate(dbUser.id);
-    } catch (error) {
-      logger.error({ error }, 'Error updating status');
-    }
-  });
+  socket.on(
+    'update-status',
+    (data: {
+      status: 'online' | 'offline' | 'in-party';
+      roomCode?: string;
+    }) => {
+      try {
+        friendManager.updateUserStatus(dbUser.id, data.status, data.roomCode);
+        notifyFriendsOfStatusUpdate(dbUser.id);
+      } catch (error) {
+        logger.error({ error }, 'Error updating status');
+      }
+    },
+  );
 
   socket.on('disconnect', () => {
-    logger.info({ socketId: socket.id, username: dbUser.username }, 'Client disconnected');
+    logger.info(
+      { socketId: socket.id, username: dbUser.username },
+      'Client disconnected',
+    );
 
     const userId = friendManager.disconnectUser(socket.id);
     if (userId) {
@@ -541,13 +671,14 @@ io.on('connection', async (socket) => {
     }
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function serializeRoom(room: any) {
     return {
       code: room.code,
       host: room.host,
       users: Array.from(room.users.values()),
       audioState: room.audioState,
-      queue: room.queue
+      queue: room.queue,
     };
   }
 
@@ -557,7 +688,7 @@ io.on('connection', async (socket) => {
 
     const friends = await friendManager.getFriendsByUser(userId);
 
-    friends.forEach(f => {
+    friends.forEach((f) => {
       const friendSession = friendManager.getSessionByUserId(f.id);
       if (friendSession && friendSession.status !== 'offline') {
         io.to(friendSession.socketId).emit('friend-status-update', {
