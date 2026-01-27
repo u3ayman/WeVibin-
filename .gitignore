@@ -60,3 +60,5 @@ client/desktop.ini
 client/logs/
 client/*.log
 client/*.tmp
+#keys
+*.pem
